@@ -1,7 +1,5 @@
 ﻿using StocksHelper.Models;
 using StocksHelper.ViewModels.Base;
-using StocksHelper.Views;
-using System.Windows.Controls;
 
 namespace StocksHelper.ViewModels
 {
@@ -10,23 +8,27 @@ namespace StocksHelper.ViewModels
 		#region Constructor
 		public MainWindowViewModel()
 		{
-
+			this.MainContentControl = new AuthenticationViewModel(ref this._LoggedInUser);
 		}
 		#endregion
 
 		#region Properties
-		private UserControl _mainContentControl = new AuthenticationView();
-		public UserControl MainContentControl
+		private object _mainContentControl;
+		public object MainContentControl
 		{
 			get => _mainContentControl;
 			set => Set(ref _mainContentControl, value);
 		}
 
-		private User _User;
-		public User User
+		private User _LoggedInUser;
+		public User LoggedInUser
 		{
-			get => _User;
-			set => Set(ref _User, value);
+			get => _LoggedInUser;
+			set
+			{
+				Set(ref _LoggedInUser, value);
+				this.MainContentControl = new StocksViewModel(this.LoggedInUser);
+			}
 		}
 		#endregion
 

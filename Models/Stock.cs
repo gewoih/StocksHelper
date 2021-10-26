@@ -25,5 +25,12 @@ namespace StocksHelper.Models
 			get => _StockQuotes;
 			set => Set(ref _StockQuotes, value);
 		}
+
+		private ObservableCollection<User> _Users;
+		public ObservableCollection<User> Users
+		{
+			get => _Users;
+			set => Set(ref _Users, value);
+		}
 	}
 }

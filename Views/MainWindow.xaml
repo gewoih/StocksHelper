@@ -6,7 +6,11 @@
 		xmlns:local="clr-namespace:StocksHelper"
 		xmlns:vm="clr-namespace:StocksHelper.ViewModels"
 		mc:Ignorable="d"
-		Title="MainWindow" Height="500" Width="960">
+		Title="StocksHelper"
+		Height="500"
+		Width="960"
+		Background="#02254D"
+		Foreground="#AAC8EA">
 
 	<Window.DataContext>
 		<vm:MainWindowViewModel/>
@@ -18,16 +22,16 @@
 			<ColumnDefinition Width="3*"/>
 		</Grid.ColumnDefinitions>
 
-		<ListBox ItemsSource="{Binding Path=Stocks}">
-			<ListBox.ItemTemplate>
+		<ListView ItemsSource="{Binding Path=LoggedInUser.Stocks}">
+			<ListView.ItemTemplate>
 				<DataTemplate>
-					<TextBlock Text="{Binding Path=fullName}" Foreground="White"/>
+					<TextBlock Text="{Binding Path=Name}" Foreground="White"/>
 				</DataTemplate>
-			</ListBox.ItemTemplate>
-		</ListBox>
+			</ListView.ItemTemplate>
+		</ListView>
 
-		<StackPanel Grid.Column="1" Margin="20">
-			<ContentControl Content="{Binding MainContentControl}" MaxHeight="{Binding RelativeSource={RelativeSource FindAncestor, AncestorType={x:Type UIElement}},Path=ActualHeight}"/>
+		<StackPanel Grid.Column="1" Margin="100">
+			<ContentControl Content="{Binding MainContentControl}"/>
 		</StackPanel>
 	</Grid>
 </Window>
