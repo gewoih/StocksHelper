@@ -22,7 +22,14 @@
 			<ColumnDefinition Width="3*"/>
 		</Grid.ColumnDefinitions>
 
-		<ListView ItemsSource="{Binding Path=LoggedInUser.Stocks, UpdateSourceTrigger=PropertyChanged}">
+		<ListView ItemsSource="{Binding Path=LoggedInUser.Stocks, UpdateSourceTrigger=PropertyChanged}" SelectedItem="{Binding SelectedStock}">
+			<ListView.ContextMenu>
+				<ContextMenu>
+					<MenuItem Header="Добавить акцию" Command="{Binding ShowNewStockWindowCommand}"/>
+					<MenuItem Header="Удалить акцию"/>
+				</ContextMenu>
+			</ListView.ContextMenu>
+			
 			<ListView.ItemTemplate>
 				<DataTemplate>
 					<TextBlock Text="{Binding Path=Name, UpdateSourceTrigger=PropertyChanged}" Foreground="White"/>
@@ -31,7 +38,7 @@
 		</ListView>
 
 		<StackPanel Grid.Column="1" Margin="100">
-			<ContentControl Content="{Binding MainContentControl, UpdateSourceTrigger=PropertyChanged}"/>
+			<ContentControl Content="{Binding MainContentControl, UpdateSourceTrigger=PropertyChanged}" VerticalAlignment="Center" VerticalContentAlignment="Center"/>
 		</StackPanel>
 	</Grid>
 </Window>
