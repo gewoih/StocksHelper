@@ -19,14 +19,14 @@ namespace StocksHelper.Models
 			set => Set(ref _Name, value);
 		}
 
-		private ObservableCollection<StockQuotes> _StockQuotes;
+		private ObservableCollection<StockQuotes> _StockQuotes = new ObservableCollection<StockQuotes>();
 		public ObservableCollection<StockQuotes> StockQuotes
 		{
 			get => _StockQuotes;
 			set => Set(ref _StockQuotes, value);
 		}
 
-		private ObservableCollection<User> _Users;
+		private ObservableCollection<User> _Users = new ObservableCollection<User>();
 		public ObservableCollection<User> Users
 		{
 			get => _Users;

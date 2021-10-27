@@ -8,7 +8,7 @@ namespace StocksHelper.ViewModels
 		#region Constructor
 		public MainWindowViewModel()
 		{
-			this.MainContentControl = new AuthenticationViewModel(ref this._LoggedInUser);
+			this.MainContentControl = new AuthenticationViewModel(this);
 		}
 		#endregion
 

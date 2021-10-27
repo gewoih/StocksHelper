@@ -16,14 +16,15 @@ namespace StocksHelper.DataContext
 			Database.EnsureDeleted();
 			Database.EnsureCreated();
 
+			var s1 = new Stock { Symbol = "AAPL", Name = "Apple Inc." };
+			var s2 = new Stock { Symbol = "SBERP.ME", Name = "Сбербанк п." };
+			this.Stocks.AddRange(s1, s2);
+
 			var u1 = new User { Username = "nranenko", Password = "123" };
 			this.Users.AddRange(u1);
 
-			var s1 = new Stock { Symbol = "AAPL", Name = "Apple Inc.", Users = new System.Collections.ObjectModel.ObservableCollection<User>(this.Users) };
-			var s2 = new Stock { Symbol = "SBERP.ME", Name = "Сбербанк п.", Users = new System.Collections.ObjectModel.ObservableCollection<User>(this.Users) };
-			this.Stocks.AddRange(s1, s2);
-
-			this.Users.FirstOrDefault(u => u.Username == u1.Username).Stocks = new System.Collections.ObjectModel.ObservableCollection<Stock>(this.Stocks);
+			u1.Stocks.Add(s1);
+			u1.Stocks.Add(s2);
 
 			SaveChanges();
 		}

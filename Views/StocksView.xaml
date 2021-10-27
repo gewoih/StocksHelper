@@ -7,11 +7,6 @@
 			 xmlns:vm="clr-namespace:StocksHelper.ViewModels"
 			 mc:Ignorable="d" 
 			 d:DesignHeight="450" d:DesignWidth="800">
-
-	<UserControl.DataContext>
-		<vm:StocksViewModel/>
-	</UserControl.DataContext>
-	
 	<Grid>
 		<Grid.RowDefinitions>
 			<RowDefinition/>

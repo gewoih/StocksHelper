@@ -4,7 +4,10 @@ using StocksHelper.Models;
 using StocksHelper.Repositories;
 using StocksHelper.Repositories.Base;
 using StocksHelper.ViewModels.Base;
+using System;
 using System.Linq;
+using System.Security.Cryptography;
+using System.Text;
 using System.Windows;
 using System.Windows.Input;
 
@@ -12,16 +15,12 @@ namespace StocksHelper.ViewModels
 {
 	public class AuthenticationViewModel : BaseViewModel
 	{
-		#region Constructor
-		public AuthenticationViewModel()
-		{
-			this._UsersRepository = new UsersRepository(new BaseDataContext());
-			this.AuthUserCommand = new RelayCommand(OnAuthUserCommandExecuted, CanAuthUserCommandExecute);
-		}
+		private MainWindowViewModel _MainVM;
 
-		public AuthenticationViewModel(ref User User)
+		#region Constructor
+		public AuthenticationViewModel(MainWindowViewModel MainVM)
 		{
-			this.LoggedInUser = User;
+			this._MainVM = MainVM;
 			this._UsersRepository = new UsersRepository(new BaseDataContext());
 			this.AuthUserCommand = new RelayCommand(OnAuthUserCommandExecuted, CanAuthUserCommandExecute);
 		}
@@ -43,13 +42,6 @@ namespace StocksHelper.ViewModels
 			get => _Password;
 			set => Set(ref _Password, value);
 		}
-
-		private User _LoggedInUser;
-		public User LoggedInUser
-		{
-			get => _LoggedInUser;
-			set => Set(ref _LoggedInUser, value);
-		}
 		#endregion
 
 		#region Commands
@@ -62,7 +54,7 @@ namespace StocksHelper.ViewModels
 			{
 				if (FindedUser.Password == this.Password)
 				{
-					this.LoggedInUser = FindedUser;
+					this._MainVM.LoggedInUser = FindedUser;
 					MessageBox.Show("Вы успешно авторизованы.");
 				}
 				else

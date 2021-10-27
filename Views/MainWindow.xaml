@@ -22,16 +22,16 @@
 			<ColumnDefinition Width="3*"/>
 		</Grid.ColumnDefinitions>
 
-		<ListView ItemsSource="{Binding Path=LoggedInUser.Stocks}">
+		<ListView ItemsSource="{Binding Path=LoggedInUser.Stocks, UpdateSourceTrigger=PropertyChanged}">
 			<ListView.ItemTemplate>
 				<DataTemplate>
-					<TextBlock Text="{Binding Path=Name}" Foreground="White"/>
+					<TextBlock Text="{Binding Path=Name, UpdateSourceTrigger=PropertyChanged}" Foreground="White"/>
 				</DataTemplate>
 			</ListView.ItemTemplate>
 		</ListView>
 
 		<StackPanel Grid.Column="1" Margin="100">
-			<ContentControl Content="{Binding MainContentControl}"/>
+			<ContentControl Content="{Binding MainContentControl, UpdateSourceTrigger=PropertyChanged}"/>
 		</StackPanel>
 	</Grid>
 </Window>

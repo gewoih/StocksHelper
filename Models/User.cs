@@ -26,7 +26,7 @@ namespace StocksHelper.Models
 			set => Set(ref _TelegramId, value);
 		}
 
-		private ObservableCollection<Stock> _Stocks;
+		private ObservableCollection<Stock> _Stocks = new ObservableCollection<Stock>();
 		public ObservableCollection<Stock> Stocks
 		{
 			get => _Stocks;
