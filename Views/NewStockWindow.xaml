@@ -7,7 +7,7 @@
         mc:Ignorable="d"
         Title="NewStockView"
 		Height="200"
-		Width="500"
+		Width="400"
 		FontSize="20">
     <Grid>
 		<Grid.RowDefinitions>
@@ -15,9 +15,9 @@
 			<RowDefinition/>
 		</Grid.RowDefinitions>
 
-		<DockPanel Margin="40">
-			<TextBlock Text="Тикер акции:" VerticalAlignment="Center"/>
-			<TextBox Width="200" Height="Auto" Text="{Binding NewStock.Symbol, UpdateSourceTrigger=PropertyChanged}"/>
+		<DockPanel Margin="20">
+			<TextBlock Text="Тикер акции:" VerticalAlignment="Center" HorizontalAlignment="Left"/>
+			<TextBox Width="200" Text="{Binding NewStock.Symbol, UpdateSourceTrigger=PropertyChanged}" VerticalAlignment="Center"/>
 		</DockPanel>
 		<Button Grid.Row="1" Content="Добавить инструмент" FontSize="20" Command="{Binding AddStockCommand}"/>
 	</Grid>

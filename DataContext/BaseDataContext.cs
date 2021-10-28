@@ -13,20 +13,14 @@ namespace StocksHelper.DataContext
 
 		public BaseDataContext()
 		{
-			Database.EnsureDeleted();
+			/*Database.EnsureDeleted();
 			Database.EnsureCreated();
 
-			var s1 = new Stock { Symbol = "AAPL", Name = "Apple Inc." };
-			var s2 = new Stock { Symbol = "SBERP.ME", Name = "Сбербанк п." };
-			this.Stocks.AddRange(s1, s2);
-
 			var u1 = new User { Username = "nranenko", Password = "123" };
-			this.Users.AddRange(u1);
+			var u2 = new User { Username = "1", Password = "1" };
+			this.Users.AddRange(u1, u2);
 
-			u1.Stocks.Add(s1);
-			u1.Stocks.Add(s2);
-
-			SaveChanges();
+			SaveChanges();*/
 		}
 
 		protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)

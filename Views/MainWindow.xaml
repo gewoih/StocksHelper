@@ -26,7 +26,7 @@
 			<ListView.ContextMenu>
 				<ContextMenu>
 					<MenuItem Header="Добавить акцию" Command="{Binding ShowNewStockWindowCommand}"/>
-					<MenuItem Header="Удалить акцию"/>
+					<MenuItem Header="Удалить акцию" Command="{Binding RemoveStockCommand}"/>
 				</ContextMenu>
 			</ListView.ContextMenu>
 			
