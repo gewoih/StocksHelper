@@ -1,4 +1,5 @@
 ﻿using StocksHelper.Models.Base;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 
 namespace StocksHelper.Models
@@ -26,8 +27,8 @@ namespace StocksHelper.Models
 			set => Set(ref _TelegramId, value);
 		}
 
-		private ObservableCollection<Stock> _Stocks = new ObservableCollection<Stock>();
-		public ObservableCollection<Stock> Stocks
+		private ICollection<Stock> _Stocks = new ObservableCollection<Stock>();
+		public ICollection<Stock> Stocks
 		{
 			get => _Stocks;
 			set => Set(ref _Stocks, value);

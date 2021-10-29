@@ -1,4 +1,5 @@
 ﻿using StocksHelper.Models.Base;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 
 namespace StocksHelper.Models
@@ -19,15 +20,15 @@ namespace StocksHelper.Models
 			set => Set(ref _Name, value);
 		}
 
-		private ObservableCollection<StockQuotes> _StockQuotes = new ObservableCollection<StockQuotes>();
-		public ObservableCollection<StockQuotes> StockQuotes
+		private ICollection<StockQuotes> _StockQuotes = new ObservableCollection<StockQuotes>();
+		public ICollection<StockQuotes> StockQuotes
 		{
 			get => _StockQuotes;
 			set => Set(ref _StockQuotes, value);
 		}
 
-		private ObservableCollection<User> _Users = new ObservableCollection<User>();
-		public ObservableCollection<User> Users
+		private ICollection<User> _Users = new ObservableCollection<User>();
+		public ICollection<User> Users
 		{
 			get => _Users;
 			set => Set(ref _Users, value);

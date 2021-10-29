@@ -8,42 +8,46 @@ namespace StocksHelper.Repositories.Base
 	public class BaseRepository<T> : IRepository<T> where T : Entity, new()
 	{
 		protected readonly BaseDataContext _dbContext;
+		protected DbSet<T> Set;
 
 		public BaseRepository(BaseDataContext dbContext)
 		{
 			this._dbContext = dbContext;
+			this.Set = dbContext.Set<T>();
 		}
 
 		public virtual IQueryable<T> GetAll()
 		{
-			return _dbContext.Set<T>();
+			return this.Set;
 		}
 
-		public T GetById(int id)
+		public virtual T GetById(int id)
 		{
-			return GetAll().FirstOrDefault(item => item.Id == id);
+			return this.Set.Find(id);
 		}
 
-		public virtual T Create(T entity)
+		public virtual void Create(T entity)
 		{
-			_dbContext.Entry(entity).State = EntityState.Added;
-			_dbContext.SaveChanges();
-
-			return GetById(entity.Id);
+			this.Set.Add(entity);
+			this._dbContext.SaveChanges();
 		}
 
-		public void Update(int id, T entity)
+		public virtual void Update(T entity)
 		{
-			_dbContext.Entry(entity).State = EntityState.Modified;
-			_dbContext.SaveChanges();
+			this.Set.Attach(entity);
+			this._dbContext.Entry(entity).State = EntityState.Modified;
+			this._dbContext.SaveChanges();
 		}
 
 		public void Delete(int id)
 		{
-			var entity = GetById(id);
-			_dbContext.Entry(entity).State = EntityState.Deleted;
+			var entity = Set.Find(id);
 
-			_dbContext.SaveChanges();
+			if (this._dbContext.Entry(entity).State == EntityState.Detached)
+				this.Set.Attach(entity);
+			this.Set.Remove(entity);
+
+			this._dbContext.SaveChanges();
 		}
 	}
 }
