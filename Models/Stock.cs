@@ -33,7 +33,5 @@ namespace StocksHelper.Models
 			get => _Users;
 			set => Set(ref _Users, value);
 		}
-
-		public List<UserStock> UserStocks { get; set; }
 	}
 }
