@@ -135,9 +135,9 @@ namespace StocksHelper.ViewModels
 
 			if (dialogResult == DialogResult.Yes)
 			{
-				//Сначала удаляем из программы, затем из БД
+				//Сначала удаляем акцию из БД, затем из программы
+				this._UsersRepository.RemoveStock(this.LoggedInUser.Id, this.SelectedStock.Id);
 				this.LoggedInUser.Stocks.Remove(this.SelectedStock);
-				this._UsersRepository.RemoveStock(this.LoggedInUser, this.SelectedStock);
 
 				MessageBox.Show("Акция удалена.");
 			}

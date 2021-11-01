@@ -17,14 +17,17 @@ namespace StocksHelper.Repositories
 
 		public void AddStock(User user, Stock stock)
 		{
-			base._dbContext.Set<User>().Find(user.Id).Stocks.Add(stock);
+			base._dbContext.Users.Find(user.Id).Stocks.Add(stock);
 			base._dbContext.SaveChanges();
 		}
 
-		public void RemoveStock(User user, Stock stock)
+		public void RemoveStock(int userId, int stockId)
 		{
-			base._dbContext.Set<User>().Find(user.Id).Stocks.Remove(stock);
-			base._dbContext.SaveChanges();
+			User user = this._dbContext.Users.FirstOrDefault(s => s.Id == userId);
+			Stock stock = this._dbContext.Stocks.FirstOrDefault(s => s.Id == stockId);
+			this._dbContext.Entry(user).Collection("Stocks").Load();
+			user.Stocks.Remove(stock);
+			this._dbContext.SaveChanges();
 		}
 	}
 }
