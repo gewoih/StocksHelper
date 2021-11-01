@@ -13,8 +13,8 @@ using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
 using System.Net;
-using System.Windows;
 using System.Windows.Input;
+using System.Windows.Forms;
 
 namespace StocksHelper.ViewModels
 {
@@ -24,12 +24,15 @@ namespace StocksHelper.ViewModels
 		public MainWindowViewModel()
 		{
 			this.NewStock = new Stock();
+			this.DBContext = new BaseDataContext();
 			this.MainContentControl = new AuthenticationViewModel(this);
-			this._StocksRepository = new StocksRepository(new BaseDataContext());
-			this._UsersRepository = new UsersRepository(new BaseDataContext());
+			this._UsersRepository = new UsersRepository(this.DBContext);
+			this._StocksRepository = new StocksRepository(this.DBContext);
+			this._StockQuotesRepository = new StocksQuotesRepository(this.DBContext);
 
 			ShowNewStockWindowCommand = new RelayCommand(OnShowNewStockWindowCommandExecuted, CanShowNewStockWindowCommandExecute);
 			AddStockCommand = new RelayCommand(OnAddStockCommandExecuted, CanAddStockCommandExecute);
+			LoadStockQuotesCommand = new RelayCommand(OnLoadStockQuotesCommandExecuted, CanLoadStockQuotesCommandExecute);
 			RemoveStockCommand = new RelayCommand(OnRemoveStockCommandExecuted, CanRemoveStockCommandExecute);
 		}
 		#endregion
@@ -42,8 +45,10 @@ namespace StocksHelper.ViewModels
 			set => Set(ref _mainContentControl, value);
 		}
 
+		private readonly BaseDataContext DBContext;
+		private UsersRepository _UsersRepository;
 		private IRepository<Stock> _StocksRepository;
-		private IRepository<User> _UsersRepository;
+		private IRepository<StockQuote> _StockQuotesRepository;
 
 		private User _LoggedInUser;
 		public User LoggedInUser
@@ -52,7 +57,7 @@ namespace StocksHelper.ViewModels
 			set
 			{
 				Set(ref _LoggedInUser, value);
-				this.MainContentControl = new StocksViewModel(this.LoggedInUser);
+				this.MainContentControl = new StocksViewModel(this.SelectedStock);
 			}
 		}
 
@@ -60,7 +65,11 @@ namespace StocksHelper.ViewModels
 		public Stock SelectedStock
 		{
 			get => _SelectedStock;
-			set => Set(ref _SelectedStock, value);
+			set
+			{
+				Set(ref _SelectedStock, value);
+				this.MainContentControl = new StocksViewModel(this.SelectedStock);
+			}
 		}
 
 		private Stock _NewStock;
@@ -72,6 +81,7 @@ namespace StocksHelper.ViewModels
 		#endregion
 
 		#region Commands
+		//Вывод окна для добавления новой акции
 		public ICommand ShowNewStockWindowCommand { get; }
 		private bool CanShowNewStockWindowCommandExecute(object p) => this.LoggedInUser != null;
 		public void OnShowNewStockWindowCommandExecuted(object p)
@@ -80,12 +90,13 @@ namespace StocksHelper.ViewModels
 			newWindow.ShowDialog();
 		}
 
+		//Добавление новой акции к аккаунту пользователя
 		public ICommand AddStockCommand { get; }
 		private bool CanAddStockCommandExecute(object p) => this.LoggedInUser != null;
 		public void OnAddStockCommandExecuted(object p)
 		{
 			//Ищем акцию с таким тикером в БД
-			Stock newStock = this._StocksRepository.GetAll().FirstOrDefault(s => s.Symbol == this.NewStock.Symbol);
+			Stock newStock = this._StocksRepository.GetAll().FirstOrDefault(s => s.Symbol.ToUpper() == this.NewStock.Symbol.ToUpper());
 			Stock createdStock;
 
 			//Если находим - делаем связку пользователя и найденной акции
@@ -104,15 +115,37 @@ namespace StocksHelper.ViewModels
 				MessageBox.Show("Данный тикер не найден.");
 		}
 
+		//Загрузка котировок в БД для выбранной акции
+		public ICommand LoadStockQuotesCommand { get; }
+		private bool CanLoadStockQuotesCommandExecute(object p) => this.SelectedStock != null;
+		public void OnLoadStockQuotesCommandExecuted(object p)
+		{
+			this._StockQuotesRepository.Create(this.GetStockQuotes(this.SelectedStock).ToArray());
+			MessageBox.Show("Котировки загружены!");
+		}
+
+		//Удаление выбранной акции с аккаунта пользователя
 		public ICommand RemoveStockCommand { get; }
 		private bool CanRemoveStockCommandExecute(object p) => this.SelectedStock != null;
 		public void OnRemoveStockCommandExecuted(object p)
 		{
-			MessageBox.Show("");
+			DialogResult dialogResult = MessageBox.Show($"Вы действительно хотите удалить акцию {SelectedStock.Name}[{SelectedStock.Symbol}]?",
+																	"Удаление акции",
+																	MessageBoxButtons.YesNo);
+
+			if (dialogResult == DialogResult.Yes)
+			{
+				//Сначала удаляем из программы, затем из БД
+				this.LoggedInUser.Stocks.Remove(this.SelectedStock);
+				this._UsersRepository.RemoveStock(this.LoggedInUser, this.SelectedStock);
+
+				MessageBox.Show("Акция удалена.");
+			}
 		}
 		#endregion
 
 		#region Methods
+		//Добавление акции в БД по тикеру через YahooFinance
 		private Stock YahooCreateStockBySymbol(string symbol)
 		{
 			//Timestamp - для оптимизации количества данных, которые подтягиваются через api
@@ -120,7 +153,7 @@ namespace StocksHelper.ViewModels
 
 			WebClient webClient = new WebClient();
 			webClient.Headers.Add("accept: application/json");
-			webClient.Headers.Add("X-API-KEY: npF3vHM9Ga5sBvRIT9tHd8chMYxUdwzV7I7WXDMZ");
+			webClient.Headers.Add("X-API-KEY: 5SP2v01bSf88WkRIZB0Th1EZSTDREGLM6CdX4sFl");
 
 			string response = webClient.DownloadString($"https://yfapi.net/v7/finance/options/{symbol}?date={currentTimestamp}");
 			dynamic obj = JsonConvert.DeserializeObject(response);
@@ -128,14 +161,38 @@ namespace StocksHelper.ViewModels
 			if (result.Count == 0)
 				return null;
 			//Найденную акцию сразу добавляем в БД и возвращаем ее результатом метода для дальнейшей обработки
+			//Небольшой костыль в виде создания нового репозитория. Через this._StocksRepository по какой-то причине не работает:(
 			return this._StocksRepository.Create(new Stock { Symbol = symbol.ToUpper(), Name = result[0].quote.shortName });
 		}
 
+		//Привязка акции к аккаунту пользователя
 		private void AddStockToUser(Stock stock)
 		{
 			this.LoggedInUser.Stocks.Add(stock);
-			this._UsersRepository.Update(this.LoggedInUser.Id, this.LoggedInUser);
+			this._UsersRepository.AddStock(this.LoggedInUser, stock);
 			MessageBox.Show($"Бумага {stock.Symbol} успешно добавлена!");
+		}
+
+		//Получение котировок акции за год через YahooFinance
+		private List<StockQuote> GetStockQuotes(Stock stock)
+		{
+			//Установка интервала и диапазона для выгрузки котировок
+			string interval = "1d"; //1m, 5m, 15m, 1d, 1wk, 1mo
+			string range = "1y"; //1d, 5d, 1m, 3m, 6m, 1y, 5y, max
+
+			WebClient webClient = new WebClient();
+			webClient.Headers.Add("accept: application/json");
+			webClient.Headers.Add("X-API-KEY: 5SP2v01bSf88WkRIZB0Th1EZSTDREGLM6CdX4sFl");
+
+			string response = webClient.DownloadString($"https://yfapi.net/v8/finance/spark?interval={interval}&range={range}&symbols={this.SelectedStock.Symbol}");
+			dynamic obj = JsonConvert.DeserializeObject(response);
+			var result = obj[this.SelectedStock.Symbol];
+
+			List<StockQuote> quotes = new List<StockQuote>();
+			for (int i = 0; i < result.timestamp.Count; i++)
+				quotes.Add(new StockQuote { StockId = stock.Id, DateTime = new DateTime(1970, 1, 1, 0, 0, 0, 0).AddSeconds((double)result.timestamp[i]).ToLocalTime(), ClosePrice = result.close[i] });
+
+			return quotes;
 		}
 		#endregion
 	}

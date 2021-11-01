@@ -1,9 +1,12 @@
 ﻿using StocksHelper.Models.Base;
+using System;
 
 namespace StocksHelper.Models
 {
-	public class StockQuotes : Entity
+	public class StockQuote : Entity
 	{
+		public int StockId { get; set; }
+
 		private Stock _Stock;
 		public Stock Stock
 		{
@@ -11,11 +14,11 @@ namespace StocksHelper.Models
 			set => Set(ref _Stock, value);
 		}
 
-		private double _Timestamp;
-		public double Timestamp
+		private DateTime _DateTime;
+		public DateTime DateTime
 		{
-			get => _Timestamp;
-			set => Set(ref _Timestamp, value);
+			get => _DateTime;
+			set => Set(ref _DateTime, value);
 		}
 
 		private double _ClosePrice;

@@ -6,11 +6,11 @@ using System.Linq;
 
 namespace StocksHelper.Repositories
 {
-	public class StocksQuotesRepository : BaseRepository<StockQuotes>
+	public class StocksQuotesRepository : BaseRepository<StockQuote>
 	{
 		public StocksQuotesRepository(BaseDataContext dbContext) : base(dbContext) { }
 
-		public override IQueryable<StockQuotes> GetAll()
+		public override IQueryable<StockQuote> GetAll()
 		{
 			return base.GetAll().Include(s => s.Stock);
 		}

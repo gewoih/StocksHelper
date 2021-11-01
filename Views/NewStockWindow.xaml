@@ -8,7 +8,9 @@
         Title="NewStockView"
 		Height="200"
 		Width="400"
-		FontSize="20">
+		FontSize="20"
+		WindowStartupLocation="CenterScreen">
+	
     <Grid>
 		<Grid.RowDefinitions>
 			<RowDefinition Height="4*"/>

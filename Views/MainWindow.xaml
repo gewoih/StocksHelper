@@ -5,12 +5,15 @@
 		xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
 		xmlns:local="clr-namespace:StocksHelper"
 		xmlns:vm="clr-namespace:StocksHelper.ViewModels"
+		xmlns:oxy="http://oxyplot.org/wpf"
 		mc:Ignorable="d"
 		Title="StocksHelper"
 		Height="500"
 		Width="960"
 		Background="#02254D"
-		Foreground="#AAC8EA">
+		Foreground="#AAC8EA"
+		WindowStartupLocation="CenterScreen"
+		FontSize="20">
 
 	<Window.DataContext>
 		<vm:MainWindowViewModel/>
@@ -26,6 +29,7 @@
 			<ListView.ContextMenu>
 				<ContextMenu>
 					<MenuItem Header="Добавить акцию" Command="{Binding ShowNewStockWindowCommand}"/>
+					<MenuItem Header="Загрузить котировки" Command="{Binding LoadStockQuotesCommand}"/>
 					<MenuItem Header="Удалить акцию" Command="{Binding RemoveStockCommand}"/>
 				</ContextMenu>
 			</ListView.ContextMenu>
@@ -37,8 +41,11 @@
 			</ListView.ItemTemplate>
 		</ListView>
 
-		<StackPanel Grid.Column="1" Margin="100">
+		<StackPanel Grid.Column="1">
 			<ContentControl Content="{Binding MainContentControl, UpdateSourceTrigger=PropertyChanged}" VerticalAlignment="Center" VerticalContentAlignment="Center"/>
+		</StackPanel>
+		<StackPanel Grid.Column="1">
+			<oxy:PlotView Model="{Binding OxyModel, UpdateSourceTrigger=PropertyChanged}"/>
 		</StackPanel>
 	</Grid>
 </Window>

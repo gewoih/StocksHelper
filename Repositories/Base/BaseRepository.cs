@@ -1,6 +1,7 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using StocksHelper.DataContext;
 using StocksHelper.Models.Base;
+using System.Collections.Generic;
 using System.Linq;
 
 namespace StocksHelper.Repositories.Base
@@ -8,46 +9,50 @@ namespace StocksHelper.Repositories.Base
 	public class BaseRepository<T> : IRepository<T> where T : Entity, new()
 	{
 		protected readonly BaseDataContext _dbContext;
-		protected DbSet<T> Set;
 
 		public BaseRepository(BaseDataContext dbContext)
 		{
 			this._dbContext = dbContext;
-			this.Set = dbContext.Set<T>();
 		}
 
 		public virtual IQueryable<T> GetAll()
 		{
-			return this.Set;
+			return _dbContext.Set<T>();
 		}
 
-		public virtual T GetById(int id)
+		public T GetById(int id)
 		{
-			return this.Set.Find(id);
+			return _dbContext.Set<T>().Find(id);
 		}
 
-		public virtual void Create(T entity)
+		public virtual T Create(T entity)
 		{
-			this.Set.Add(entity);
-			this._dbContext.SaveChanges();
+			_dbContext.Entry(entity).State = EntityState.Added;
+			_dbContext.SaveChanges();
+
+			return GetById(entity.Id);
 		}
 
-		public virtual void Update(T entity)
+		public virtual IEnumerable<T> Create(IEnumerable<T> entities)
 		{
-			this.Set.Attach(entity);
-			this._dbContext.Entry(entity).State = EntityState.Modified;
-			this._dbContext.SaveChanges();
+			_dbContext.Set<T>().AddRange(entities);
+			_dbContext.SaveChanges();
+
+			return entities;
+		}
+
+		public void Update(T entity)
+		{
+			_dbContext.Entry(entity).State = EntityState.Modified;
+			_dbContext.SaveChanges();
 		}
 
 		public void Delete(int id)
 		{
-			var entity = Set.Find(id);
+			var entity = GetById(id);
+			_dbContext.Entry(entity).State = EntityState.Deleted;
 
-			if (this._dbContext.Entry(entity).State == EntityState.Detached)
-				this.Set.Attach(entity);
-			this.Set.Remove(entity);
-
-			this._dbContext.SaveChanges();
+			_dbContext.SaveChanges();
 		}
 	}
 }

@@ -14,5 +14,17 @@ namespace StocksHelper.Repositories
 		{
 			return base.GetAll().Include(u => u.Stocks);
 		}
+
+		public void AddStock(User user, Stock stock)
+		{
+			base._dbContext.Set<User>().Find(user.Id).Stocks.Add(stock);
+			base._dbContext.SaveChanges();
+		}
+
+		public void RemoveStock(User user, Stock stock)
+		{
+			base._dbContext.Set<User>().Find(user.Id).Stocks.Remove(stock);
+			base._dbContext.SaveChanges();
+		}
 	}
 }

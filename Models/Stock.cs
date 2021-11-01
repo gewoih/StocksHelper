@@ -20,8 +20,8 @@ namespace StocksHelper.Models
 			set => Set(ref _Name, value);
 		}
 
-		private ICollection<StockQuotes> _StockQuotes = new ObservableCollection<StockQuotes>();
-		public ICollection<StockQuotes> StockQuotes
+		private ICollection<StockQuote> _StockQuotes = new ObservableCollection<StockQuote>();
+		public ICollection<StockQuote> StockQuotes
 		{
 			get => _StockQuotes;
 			set => Set(ref _StockQuotes, value);
@@ -33,5 +33,7 @@ namespace StocksHelper.Models
 			get => _Users;
 			set => Set(ref _Users, value);
 		}
+
+		public List<UserStock> UserStocks { get; set; }
 	}
 }
