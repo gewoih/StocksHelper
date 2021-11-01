@@ -15,6 +15,7 @@ using System.Linq;
 using System.Net;
 using System.Windows.Input;
 using System.Windows.Forms;
+using System.Configuration;
 
 namespace StocksHelper.ViewModels
 {
@@ -153,7 +154,7 @@ namespace StocksHelper.ViewModels
 
 			WebClient webClient = new WebClient();
 			webClient.Headers.Add("accept: application/json");
-			webClient.Headers.Add("X-API-KEY: 5SP2v01bSf88WkRIZB0Th1EZSTDREGLM6CdX4sFl");
+			webClient.Headers.Add($"X-API-KEY: {ConfigurationManager.AppSettings["YahooFinanceAPI1"]}");
 
 			string response = webClient.DownloadString($"https://yfapi.net/v7/finance/options/{symbol}?date={currentTimestamp}");
 			dynamic obj = JsonConvert.DeserializeObject(response);
@@ -182,7 +183,7 @@ namespace StocksHelper.ViewModels
 
 			WebClient webClient = new WebClient();
 			webClient.Headers.Add("accept: application/json");
-			webClient.Headers.Add("X-API-KEY: 5SP2v01bSf88WkRIZB0Th1EZSTDREGLM6CdX4sFl");
+			webClient.Headers.Add($"X-API-KEY: {ConfigurationManager.AppSettings["YahooFinanceAPI1"]}");
 
 			string response = webClient.DownloadString($"https://yfapi.net/v8/finance/spark?interval={interval}&range={range}&symbols={this.SelectedStock.Symbol}");
 			dynamic obj = JsonConvert.DeserializeObject(response);

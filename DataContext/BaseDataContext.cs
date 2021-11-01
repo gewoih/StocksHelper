@@ -2,6 +2,7 @@
 using StocksHelper.Models;
 using System;
 using System.Collections.Generic;
+using System.Configuration;
 using System.Linq;
 
 namespace StocksHelper.DataContext
@@ -26,9 +27,7 @@ namespace StocksHelper.DataContext
 
 		protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
 		{
-			optionsBuilder.UseMySql(
-							"server=server71.hosting.reg.ru;port=3306;user=u1507549_default;password=8fCFB6jH9x4D4ovv;database=u1507549_stockshelperdb;",
-							new MySqlServerVersion(new Version(5, 7, 27)));
+			optionsBuilder.UseMySql(ConfigurationManager.ConnectionStrings["StocksHelperDB"].ConnectionString, new MySqlServerVersion(new Version(5, 7, 27)));
 			optionsBuilder.LogTo(message => System.Diagnostics.Debug.WriteLine(message));
 		}
 	}
