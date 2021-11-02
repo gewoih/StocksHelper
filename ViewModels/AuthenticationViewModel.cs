@@ -52,7 +52,7 @@ namespace StocksHelper.ViewModels
 			User FindedUser = this._UsersRepository.GetAll().FirstOrDefault(u => u.Username == this.Username);
 			if (FindedUser != null)
 			{
-				if (FindedUser.Password == this.Password)
+				if (FindedUser.Password == this.CalculateHash(this.Password + FindedUser.Id))
 				{
 					this._MainVM.LoggedInUser = FindedUser;
 					MessageBox.Show("Вы успешно авторизованы.");
@@ -62,6 +62,18 @@ namespace StocksHelper.ViewModels
 			}
 			else
 				MessageBox.Show("Пользователя с таким логином не существует.");
+		}
+		#endregion
+
+		#region Methods
+		private string CalculateHash(string text)
+		{
+			byte[] hashBytes = Encoding.UTF8.GetBytes(text);
+
+			HashAlgorithm algorithm = new SHA256Managed();
+			byte[] hash = algorithm.ComputeHash(hashBytes);
+
+			return Convert.ToBase64String(hash);
 		}
 		#endregion
 	}
