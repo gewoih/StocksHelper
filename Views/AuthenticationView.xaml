@@ -3,12 +3,9 @@
 			 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
 			 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
 			 xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
-			 xmlns:local="clr-namespace:StocksHelper.Views"
-			 xmlns:vm="clr-namespace:StocksHelper.ViewModels"
 			 mc:Ignorable="d" 
 			 d:DesignHeight="300" d:DesignWidth="400"
 			 FontSize="20">
-
 	<Grid>
 		<Grid.RowDefinitions>
 			<RowDefinition Height="2*"/>
@@ -16,16 +13,16 @@
 			<RowDefinition/>
 		</Grid.RowDefinitions>
 
-		<DockPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-			<TextBlock Text="Логин" VerticalAlignment="Center"/>
-			<TextBox Text="{Binding Username, UpdateSourceTrigger=PropertyChanged}" Width="200" Margin="20"/>
+		<DockPanel Grid.Row="0" HorizontalAlignment="Center" VerticalAlignment="Center" Width="300">
+			<TextBlock Text="Логин:" VerticalAlignment="Center"/>
+			<TextBox Text="{Binding Username, UpdateSourceTrigger=PropertyChanged}" Width="200" Margin="10"/>
 		</DockPanel>
 
-		<DockPanel Grid.Row="1" HorizontalAlignment="Center" VerticalAlignment="Center">
-			<TextBlock Text="Пароль" VerticalAlignment="Center"/>
-			<TextBox Text="{Binding Password, UpdateSourceTrigger=PropertyChanged}" Width="200" Margin="20"/>
+		<DockPanel Grid.Row="1" HorizontalAlignment="Center" VerticalAlignment="Center" Width="300">
+			<TextBlock Text="Пароль:" VerticalAlignment="Center"/>
+			<PasswordBox Name="PasswordBox" Width="200" Margin="10"/>
 		</DockPanel>
 
-		<Button Grid.Row="2" Content="Войти в учетную запись" Command="{Binding AuthUserCommand}" FontSize="20" VerticalContentAlignment="Stretch"/>
+		<Button Grid.Row="2" Content="Войти в учетную запись" Command="{Binding AuthUserCommand}" CommandParameter="{Binding ElementName=PasswordBox}" FontSize="20" VerticalContentAlignment="Stretch"/>
 	</Grid>
 </UserControl>

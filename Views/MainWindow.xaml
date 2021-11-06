@@ -41,11 +41,10 @@
 			</ListView.ItemTemplate>
 		</ListView>
 
-		<StackPanel Grid.Column="1">
-			<ContentControl Content="{Binding MainContentControl, UpdateSourceTrigger=PropertyChanged}" VerticalAlignment="Center" VerticalContentAlignment="Center"/>
-		</StackPanel>
-		<StackPanel Grid.Column="1">
-			<oxy:PlotView Model="{Binding OxyModel, UpdateSourceTrigger=PropertyChanged}"/>
-		</StackPanel>
+		<DockPanel Grid.Column="1">
+			<ContentControl Content="{Binding MainContentControl, UpdateSourceTrigger=PropertyChanged}" VerticalAlignment="Center" HorizontalAlignment="Center" Margin="20"
+							MaxWidth="{Binding RelativeSource={RelativeSource FindAncestor, AncestorType={x:Type UIElement}},Path=ActualWidth}"
+							MaxHeight="{Binding RelativeSource={RelativeSource FindAncestor, AncestorType={x:Type UIElement}},Path=ActualHeight}"/>
+		</DockPanel>
 	</Grid>
 </Window>

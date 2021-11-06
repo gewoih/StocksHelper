@@ -52,7 +52,7 @@ namespace StocksHelper.ViewModels
 			User FindedUser = this._UsersRepository.GetAll().FirstOrDefault(u => u.Username == this.Username);
 			if (FindedUser != null)
 			{
-				if (FindedUser.Password == this.CalculateHash(this.Password + FindedUser.Id))
+				if (FindedUser.Password == this.CalculateHash(p.ToString() + FindedUser.Id))
 				{
 					this._MainVM.LoggedInUser = FindedUser;
 					MessageBox.Show("Вы успешно авторизованы.");

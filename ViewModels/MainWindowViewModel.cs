@@ -58,7 +58,7 @@ namespace StocksHelper.ViewModels
 			set
 			{
 				Set(ref _LoggedInUser, value);
-				this.MainContentControl = new StocksViewModel(this.SelectedStock);
+				this.MainContentControl = null;
 			}
 		}
 
