@@ -28,7 +28,7 @@ namespace StocksHelper.Models
 			return resultPoints;
 		}
 
-		public static double CalculateCCI(List<DataPoint> quotes, int period)
+		public static List<DataPoint> CalculateCCI(List<DataPoint> quotes, int period)
 		{
 			List<DataPoint> resultPoints = new List<DataPoint>();
 			for (int i = 0; i < quotes.Count; i++)
