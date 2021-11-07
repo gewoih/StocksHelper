@@ -1,6 +1,9 @@
-﻿using StocksHelper.Models.Base;
+﻿using StocksHelper.DataContext;
+using StocksHelper.Models.Base;
+using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Linq;
 
 namespace StocksHelper.Models
 {
@@ -32,6 +35,14 @@ namespace StocksHelper.Models
 		{
 			get => _Users;
 			set => Set(ref _Users, value);
+		}
+		
+		public DateTime GetDateTimeLastQuote()
+		{
+			if (this.StockQuotes.Count == 0)
+				return DateTime.MinValue;
+
+			return this.StockQuotes.ToList().Max(sq => sq.DateTime);
 		}
 	}
 }

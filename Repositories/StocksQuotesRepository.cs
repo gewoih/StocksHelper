@@ -2,6 +2,7 @@
 using StocksHelper.DataContext;
 using StocksHelper.Models;
 using StocksHelper.Repositories.Base;
+using System;
 using System.Linq;
 
 namespace StocksHelper.Repositories

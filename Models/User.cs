@@ -33,5 +33,12 @@ namespace StocksHelper.Models
 			get => _Stocks;
 			set => Set(ref _Stocks, value);
 		}
+
+		private bool _IsActive;
+		public bool IsActive
+		{
+			get => _IsActive;
+			set => Set(ref _IsActive, value);
+		}
 	}
 }

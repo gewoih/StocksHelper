@@ -18,8 +18,8 @@ namespace StocksHelper.DataContext
 			/*Database.EnsureDeleted();
 			Database.EnsureCreated();
 
-			var u1 = new User { Username = "nranenko", Password = "123" };
-			var u2 = new User { Username = "1", Password = "1" };
+			var u1 = new User { Username = "gewoih", TelegramId = "319784342", IsActive = true };
+			var u2 = new User { Username = "", TelegramId = "555643683" };
 			this.Users.AddRange(u1, u2);
 
 			SaveChanges();*/
