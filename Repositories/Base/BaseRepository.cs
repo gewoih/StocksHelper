@@ -20,7 +20,7 @@ namespace StocksHelper.Repositories.Base
 			return _dbContext.Set<T>();
 		}
 
-		public T GetById(int id)
+		public virtual T GetById(int id)
 		{
 			return _dbContext.Set<T>().Find(id);
 		}

@@ -12,7 +12,12 @@ namespace StocksHelper.Repositories
 
 		public override IQueryable<Stock> GetAll()
 		{
-			return base.GetAll().Include(s => s.StockQuotes);
+			return base.GetAll().Include(s => s.StockQuotes).Include(s => s.Users);
+		}
+
+		public override Stock GetById(int id)
+		{
+			return _dbContext.Set<Stock>().Include(s => s.StockQuotes).FirstOrDefault(s => s.Id == id);
 		}
 	}
 }

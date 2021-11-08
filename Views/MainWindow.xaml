@@ -19,10 +19,10 @@
 	</Window.DataContext>
 
 	<Grid ShowGridLines="True">
-		<DataGrid Margin="20" ItemsSource="{Binding LogRecords}" AutoGenerateColumns="False">
+		<DataGrid x:Name="dataGrid" Margin="20" ItemsSource="{Binding LogRecords}" AutoGenerateColumns="False">
 			<DataGrid.Columns>
 				<DataGridTextColumn Header="id" Binding="{Binding Id}"/>
-				<DataGridTextColumn Header="Дата" Binding="{Binding DateTime}"/>
+				<DataGridTextColumn Header="Дата" Binding="{Binding DateTime, StringFormat=\{0:dd MMM yyyy HH:mm:ss\}, ConverterCulture=ru}"/>
 				<DataGridTextColumn Header="От кого" Binding="{Binding FromUser.TelegramId}"/>
 				<DataGridTextColumn Header="Кому" Binding="{Binding ToUser.TelegramId}"/>
 				<DataGridTextColumn Header="Сообщение" Binding="{Binding Message}"/>

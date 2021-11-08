@@ -43,10 +43,12 @@ namespace StocksHelper.Models
 			double avgLoss = 0;
 
 			int size = quotes.Count;
-			int i = size - 1;
+			List<DataPoint> results = new(size);
 			double[] gain = new double[size]; // gain
 			double[] loss = new double[size]; // loss
 
+			for (int i = 0; i < quotes.Count; i++)
+			{
 				//Заполняем массив восходящих и нисходящих цен
 				DataPoint h = quotes[i];
 				int index = i + 1;
@@ -57,39 +59,41 @@ namespace StocksHelper.Models
 				loss[i] = (h.Y < lastValue) ? lastValue - h.Y : 0;
 				lastValue = h.Y;
 
-			//Вычисляем RSI
-			if (index > period + 1)
-			{
-				avgGain = (avgGain * (period - 1) + gain[i]) / period;
-				avgLoss = (avgLoss * (period - 1) + loss[i]) / period;
-
-				if (avgLoss > 0)
+				//Вычисляем RSI
+				if (index > period + 1)
 				{
-					double rs = avgGain / avgLoss;
-					RSIResult = new DataPoint(RSIResult.X, 100 - (100 / (1 + rs)));
+					avgGain = (avgGain * (period - 1) + gain[i]) / period;
+					avgLoss = (avgLoss * (period - 1) + loss[i]) / period;
+
+					if (avgLoss > 0)
+					{
+						double rs = avgGain / avgLoss;
+						RSIResult = new DataPoint(RSIResult.X, 100 - (100 / (1 + rs)));
+					}
+					else
+						RSIResult = new DataPoint(RSIResult.X, 100);
 				}
-				else
-					return 100;
+
+				//Расчет средней цены
+				else if (index == period + 1)
+				{
+					double sumGain = 0;
+					double sumLoss = 0;
+
+					for (int p = 1; p <= period; p++)
+					{
+						sumGain += gain[p];
+						sumLoss += loss[p];
+					}
+					avgGain = sumGain / period;
+					avgLoss = sumLoss / period;
+
+					RSIResult = new DataPoint(RSIResult.X, (avgLoss > 0) ? 100 - (100 / (1 + (avgGain / avgLoss))) : 100);
+				}
+				results.Add(RSIResult);
 			}
 
-			//Расчет средней цены
-			else if (index == period + 1)
-			{
-				double sumGain = 0;
-				double sumLoss = 0;
-
-				for (int p = 1; p <= period; p++)
-				{
-					sumGain += gain[p];
-					sumLoss += loss[p];
-				}
-				avgGain = sumGain / period;
-				avgLoss = sumLoss / period;
-
-				return (avgLoss > 0) ? 100 - (100 / (1 + (avgGain / avgLoss))) : 100;
-			}
-
-			return 0;
+			return results.Last().Y;
 		}
 	}
 }

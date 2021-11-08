@@ -12,12 +12,12 @@ namespace StocksHelper.Repositories
 
 		public override IQueryable<User> GetAll()
 		{
-			return base.GetAll().Include(u => u.Stocks);
+			return base.GetAll().Include(u => u.Stocks).ThenInclude(s => s.StockQuotes);
 		}
 
-		public void AddStock(User user, Stock stock)
+		public void AddStock(int userId, int stockId)
 		{
-			base._dbContext.Users.Find(user.Id).Stocks.Add(stock);
+			base._dbContext.Users.Find(userId).Stocks.Add(base._dbContext.Stocks.Find(stockId));
 			base._dbContext.SaveChanges();
 		}
 
