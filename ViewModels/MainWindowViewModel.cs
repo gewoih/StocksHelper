@@ -1,26 +1,19 @@
 ﻿using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
-using StocksHelper.Commands;
 using StocksHelper.DataContext;
 using StocksHelper.Models;
 using StocksHelper.Repositories;
-using StocksHelper.Repositories.Base;
 using StocksHelper.ViewModels.Base;
-using StocksHelper.Views;
 using System;
 using System.Collections.Generic;
-using System.Collections.ObjectModel;
-using System.IO;
 using System.Linq;
 using System.Net;
-using System.Windows.Input;
-using System.Windows.Forms;
 using System.Configuration;
 using Telegram.Bot;
 using Telegram.Bot.Args;
 using Telegram.Bot.Types.ReplyMarkups;
-using OxyPlot;
-using OxyPlot.Axes;
+using System.Collections.ObjectModel;
+using System.Threading;
+using System.Windows.Threading;
 
 namespace StocksHelper.ViewModels
 {
@@ -29,30 +22,126 @@ namespace StocksHelper.ViewModels
 		#region Constructor
 		public MainWindowViewModel()
 		{
-			this.DBContext = new BaseDataContext();
-			this._UsersRepository = new UsersRepository(this.DBContext);
-			this._StocksRepository = new StocksRepository(this.DBContext);
-			this._StockQuotesRepository = new StocksQuotesRepository(this.DBContext);
+			this._BaseDataContext = new BaseDataContext();
+			this._UsersRepository = new UsersRepository(this._BaseDataContext);
+			this._StocksRepository = new StocksRepository(this._BaseDataContext);
+			this._StockQuotesRepository = new StocksQuotesRepository(this._BaseDataContext);
+			this._LogRecordsRepository = new LogRecordsRepository(this._BaseDataContext);
 			this.BotClient = new TelegramBotClient(ConfigurationManager.AppSettings["TelegramBotAPI"]);
 
-			this.LoadMissingQuotes();
 			this.ConfigureTelegramBot(this.BotClient);
+			//Загрузка логов
+			this.LogRecords = new ObservableCollection<LogRecord>(this._LogRecordsRepository.GetAll());
+			//Загружаем недостающие котировки по всем акциям при запуске приложения
+			this.LoadMissingQuotes();
 		}
 		#endregion
 
 		#region Properties
-		private readonly BaseDataContext DBContext;
-		private UsersRepository _UsersRepository;
-		private StocksRepository _StocksRepository;
-		private StocksQuotesRepository _StockQuotesRepository;
+		private TelegramBotClient BotClient;
 
-		TelegramBotClient BotClient;
-		#endregion
+		private readonly BaseDataContext _BaseDataContext;
+		private readonly UsersRepository _UsersRepository;
+		private readonly StocksRepository _StocksRepository;
+		private readonly StocksQuotesRepository _StockQuotesRepository;
+		private readonly LogRecordsRepository _LogRecordsRepository;
 
-		#region Commands		
+		private ObservableCollection<LogRecord> _LogRecords;
+		public ObservableCollection<LogRecord> LogRecords
+		{
+			get => _LogRecords;
+			set => Set(ref _LogRecords, value);
+		}
 		#endregion
 
 		#region Methods
+		private void ConfigureTelegramBot(TelegramBotClient botClient)
+		{
+			botClient.StartReceiving();
+			botClient.OnMessage += OnMessageHandler;
+		}
+
+		private async void OnMessageHandler(object sender, MessageEventArgs e)
+		{
+			var msg = e.Message;
+			Telegram.Bot.Types.ChatId answerChatId = msg.Chat.Id;
+			string answerMessage = "Выберите команду:";
+			IReplyMarkup answerReplyMarkup = GetMainMenuButtons();
+			//Ищем пользователя по telegramId
+			User user = this._UsersRepository.GetAll().FirstOrDefault(u => u.TelegramId == msg.From.Id.ToString());
+
+			//Зарегистрировать пользователя, если он не найден
+			if (user == null)
+			{
+				user = this.RegisterUser(msg.From.Username, msg.From.Id.ToString());
+
+				answerMessage = $"Добро пожаловать! Я - ваш новый личный помощник на фондовом рынке. Все, что вам нужно - это сформировать список " +
+					"интересующих вас акций через интерфейс ниже. После добавления акций, я буду присылать вам ежедневные отчеты и сигналы по выбранным компаниям.";
+			}
+
+			if (msg.Text != null)
+			{
+				switch (msg.Text)
+				{
+					case "Добавить акцию" or "Удалить акцию":
+						if (msg.Text == "Добавить акцию")
+							answerMessage = "Введите тикер акции для добавления:";
+						else
+							answerMessage = "Введите тикер акции для удаления:";
+						answerReplyMarkup = new ForceReplyMarkup { Selective = true };
+						break;
+
+					case "Мои акции":
+						answerReplyMarkup = GetMyStocksButtons();
+						break;
+
+					case "Список моих акций":
+						if (user.Stocks.Count != 0)
+						{
+							answerMessage = String.Empty;
+							user.Stocks.ToList().ForEach(s => answerMessage += $"{s.Name} [{s.Symbol}]\n");
+						}
+						else
+							answerMessage = "Вы пока не добавили ни одной акции.";
+						answerReplyMarkup = GetMyStocksButtons();
+						break;
+
+					case "В главное меню":
+						answerMessage = "Возврат в главное меню";
+						break;
+
+					default:
+						if (msg.ReplyToMessage != null && msg.ReplyToMessage.From.Id == this.BotClient.BotId)
+						{
+							if (msg.ReplyToMessage.Text == "Введите тикер акции для добавления:")
+								answerMessage = this.AddStockToUser(user, msg.Text);
+							else if (msg.ReplyToMessage.Text == "Введите тикер акции для удаления:")
+								answerMessage = this.RemoveStockFromUser(user, msg.Text);
+
+							answerReplyMarkup = GetMyStocksButtons();
+						}
+						break;
+				}
+
+				await this.BotClient.SendTextMessageAsync
+				(
+					chatId: answerChatId,
+					text: answerMessage,
+					replyMarkup: answerReplyMarkup
+				);
+
+				Dispatcher.CurrentDispatcher.Invoke
+				(
+					new Action(() =>
+					{
+						this.LogRecords.Add(this._LogRecordsRepository.Create(new LogRecord { DateTime = DateTime.Now, FromUser = user, Message = msg.Text }));
+						this.LogRecords.Add(this._LogRecordsRepository.Create(new LogRecord { DateTime = DateTime.Now, ToUser = user, Message = answerMessage }));
+					}),
+					DispatcherPriority.Normal
+				);
+			}
+		}
+
 		//Добавление акции в БД по тикеру через YahooFinance
 		private Stock YahooCreateStockBySymbol(string symbol)
 		{
@@ -72,14 +161,19 @@ namespace StocksHelper.ViewModels
 			return this._StocksRepository.Create(new Stock { Symbol = symbol.ToUpper(), Name = result[0].quote.shortName });
 		}
 
-		private async void SendNotifications(Stock stock)
+		private async void SendNotifications(Stock stock, List<User> usersToNotify = null)
 		{
-			List<User> usersToNotify = this._UsersRepository.GetAll().Where(u => u.Stocks.Contains(stock)).ToList();
+			//Список пользователей, которым нужно прислать уведомление
+			//Если его не передали аргументом - берем всех пользователей, у которых есть заданная акций
+			if (usersToNotify == null)
+				usersToNotify = this._UsersRepository.GetAll().Where(u => u.Stocks.Contains(stock)).ToList();
+			//Список котировок акции
 			List<DataPoint> quotes = new List<DataPoint>();
-			this._StockQuotesRepository.GetAll().Where(s => s.Stock.Id == stock.Id).OrderBy(q => q.DateTime).ToList().ForEach(q => quotes.Add(new DataPoint(DateTimeAxis.ToDouble(q.DateTime), q.ClosePrice)));
+			this._StockQuotesRepository.GetAll().Where(s => s.Stock.Id == stock.Id).OrderBy(q => q.DateTime).ToList().ForEach(q => quotes.Add(new DataPoint(q.DateTime.ToOADate(), q.ClosePrice)));
 
-			double CCI = Indicators.CalculateCCI(quotes, 50).Last().Y;
-			double RSI = Indicators.CalculateRSI(quotes, 14).Last().Y;
+			//Рассчет индикаторов
+			double CCI = Indicators.CalculateCCI(quotes, 50);
+			double RSI = Indicators.CalculateRSI(quotes, 14);
 			string answer = $"Показатели по акции {stock.Name} [{stock.Symbol}] за {stock.StockQuotes.Last().DateTime.ToString("D")}:\n" +
 							$"CCI: {Math.Round(CCI, 2)}\n" +
 							$"RSI: {Math.Round(RSI, 2)}\n" +
@@ -121,6 +215,7 @@ namespace StocksHelper.ViewModels
 			dynamic obj = JsonConvert.DeserializeObject(response);
 			var result = obj[stock.Symbol];
 
+			//Формируем список котировок и возвращаем его
 			List<StockQuote> quotes = new List<StockQuote>();
 			for (int i = 0; i < result.timestamp.Count; i++)
 			{
@@ -134,168 +229,48 @@ namespace StocksHelper.ViewModels
 			return quotes;
 		}
 
-		private void LoadMissingQuotes()
+		//Подгрузка недостающих котировок по всем акциям (или одной акции) и отправка уведомлений владельцам
+		private void LoadMissingQuotes(Stock stock = null)
 		{
-			//Проходим по всем акциям и проверяем время их последних котировок. Если оно ме
-			List<Stock> stocks = this._StocksRepository.GetAll().ToList();
+			//Если аргументом передана конкретная акция - обрабатываем только ее
+			//Если нет - обрабатываем все существующие акции
+			List<Stock> stocks;
+			if (stock == null)
+				stocks = this._StocksRepository.GetAll().ToList();
+			else
+				stocks = new List<Stock>() { stock };
+
+			//Проходим по всем акциям и проверяем время их последних котировок
 			for (int i = 0; i < stocks.Count; i++)
 			{
 				//Получаем дату последней котировки
 				DateTime lastQuoteDateTime = stocks[i].GetDateTimeLastQuote();
 
+				//Флаг есть ли у акции новые котировки
 				bool hasNewQuotes = false;
 
-				//Если у акции нет котировок или если день, следующий за датой последней котировки НЕ выходной, то подгружаем котировки
-				if (!this.IsWeekendDay(stocks[i].GetDateTimeLastQuote().AddDays(1)))
+				//Если у акции нет котировок или если день, СЛЕДУЮЩИЙ за датой последней котировки НЕ выходной, то подгружаем котировки
+				//ПЕРЕДЕЛАТЬ МЕТОД ISWEEKENDDAY. НЕПРАВИЛЬНАЯ ЛОГИКА.
+				if (stocks[i].StockQuotes.Count == 0 || !this.IsWeekendDay(stocks[i].GetDateTimeLastQuote().AddDays(1)))
 				{
 					this._StockQuotesRepository.Create(this.GetStockQuotes(stocks[i], lastQuoteDateTime));
 					hasNewQuotes = true;
 				}
 
+				//Если у акции есть новые котировки - отправляем уведомления всем владельцам этой акции
 				if (hasNewQuotes)
 					this.SendNotifications(stocks[i]);
 			}
 		}
 
-		private bool IsWeekendDay(DateTime date)
+		//Регистрируем пользователя с соответствующим именем и telegramId
+		private User RegisterUser(string username, string telegramId)
 		{
-			if (date.DayOfWeek == DayOfWeek.Saturday || date.DayOfWeek == DayOfWeek.Sunday)
-				return true;
-			return false;
+			//Добавляем нового пользователя через репозиторий и возвращаем ссылку на него
+			return this._UsersRepository.Create(new User { Username = username, TelegramId = telegramId });
 		}
 
-		private void ConfigureTelegramBot(TelegramBotClient botClient)
-		{
-			botClient.StartReceiving();
-			botClient.OnMessage += OnMessageHandler;
-		}
-
-		private async void OnMessageHandler(object sender, MessageEventArgs e)
-		{
-			var msg = e.Message;
-			string answer = "Выберите команду:";
-			User user;
-
-			//Зарегистрировать пользователя, если он не найден
-			if (this.RegisterUser(msg.From.Username, msg.From.Id.ToString()))
-			{
-				answer = $"Добро пожаловать! Я - ваш новый личный помощник на фондовом рынке. Все, что вам нужно - это сформировать список " +
-					"интересующих вас акций через интерфейс ниже. После добавления акций, я буду присылать вам ежедневные отчеты и сигналы по выбранным компаниям.";
-				await this.BotClient.SendTextMessageAsync
-				(
-					chatId: msg.Chat.Id,
-					text: answer,
-					replyMarkup: GetMainMenuButtons()
-				);
-			}
-			user = this._UsersRepository.GetAll().FirstOrDefault(u => u.TelegramId == msg.From.Id.ToString());
-
-			if (msg.Text != null)
-			{
-				switch (msg.Text)
-				{
-					case "Добавить акцию" or "Удалить акцию":
-						if (msg.Text == "Добавить акцию")
-							answer = "Введите тикер акции для добавления:";
-						else
-							answer = "Введите тикер акции для удаления:";
-						await this.BotClient.SendTextMessageAsync
-						(
-							chatId: msg.Chat.Id,
-							text: answer,
-							replyMarkup: new ForceReplyMarkup { Selective = true }						
-						);
-						break;
-
-					case "Мои акции":
-						/*if (user.Stocks.Count != 0)
-							user.Stocks.ToList().ForEach(s => answer += $"{s.Name} [{s.Symbol}]\n");
-						else
-							answer = "Вы пока не добавили ни одной акции.";*/
-						await this.BotClient.SendTextMessageAsync
-						(
-							chatId: msg.Chat.Id,
-							text: answer,
-							replyMarkup: GetMyStocksButtons()
-						);
-						break;
-
-					case "Список моих акций":
-						if (user.Stocks.Count != 0)
-						{
-							answer = String.Empty;
-							user.Stocks.ToList().ForEach(s => answer += $"{s.Name} [{s.Symbol}]\n");
-						}
-						else
-							answer = "Вы пока не добавили ни одной акции.";
-						await this.BotClient.SendTextMessageAsync
-						(
-							chatId: msg.Chat.Id,
-							text: answer,
-							replyMarkup: GetMyStocksButtons()
-						);
-						break;
-
-					case "В главное меню":
-						await this.BotClient.SendTextMessageAsync
-						(
-							chatId: msg.Chat.Id,
-							text: "Возврат в главное меню",
-							replyMarkup: GetMainMenuButtons()
-						);
-						break;
-
-					default:
-						if (msg.ReplyToMessage != null && msg.ReplyToMessage.From.Id == this.BotClient.BotId)
-						{
-							if (msg.ReplyToMessage.Text == "Введите тикер акции для добавления:")
-								answer = this.AddStockToUser(user, msg.Text);
-							else if (msg.ReplyToMessage.Text == "Введите тикер акции для удаления:")
-								answer = this.RemoveStockFromUser(user, msg.Text);
-
-							await this.BotClient.SendTextMessageAsync(msg.Chat.Id, answer, replyMarkup: GetMyStocksButtons());
-						}
-						else
-							await this.BotClient.SendTextMessageAsync(msg.Chat.Id, answer, replyMarkup: GetMainMenuButtons());
-						break;
-				}
-			}
-		}
-
-		private static IReplyMarkup GetMainMenuButtons()
-		{
-			return new ReplyKeyboardMarkup
-			{
-				Keyboard = new List<List<KeyboardButton>>
-				{
-					new List<KeyboardButton>{ new KeyboardButton { Text = "Мои акции"} },
-				}
-			};
-		}
-
-		private static IReplyMarkup GetMyStocksButtons()
-		{
-			return new ReplyKeyboardMarkup
-			{
-				Keyboard = new List<List<KeyboardButton>>
-				{
-					new List<KeyboardButton>{ new KeyboardButton { Text = "Добавить акцию"}, new KeyboardButton { Text = "Удалить акцию" } },
-					new List<KeyboardButton>{ new KeyboardButton { Text = "Список моих акций"} },
-					new List<KeyboardButton>{ new KeyboardButton { Text = "В главное меню"} },
-				}
-			};
-		}
-
-		private bool RegisterUser(string username, string telegramId)
-		{
-			if (this._UsersRepository.GetAll().FirstOrDefault(u => u.TelegramId == telegramId) == null)
-			{
-				this._UsersRepository.Create(new User { Username = username, TelegramId = telegramId });
-				return true;
-			}
-			return false;
-		}
-
+		//Добавление акции по тикеру для пользователя
 		private string AddStockToUser(User user, string symbol)
 		{
 			//Ищем акцию с таким тикером в БД
@@ -305,6 +280,7 @@ namespace StocksHelper.ViewModels
 			//Если находим - делаем связку пользователя и найденной акции
 			if (newStock != null)
 			{
+				//Если у этого пользователя нет такой акции - добавляем, если есть - выводим ошибку
 				if (user.Stocks.Count(s => s.Symbol.ToUpper() == symbol.ToUpper()) == 0)
 				{
 					this._UsersRepository.AddStock(user, newStock);
@@ -316,8 +292,9 @@ namespace StocksHelper.ViewModels
 			//Если не находим акцию в БД - ищем такой тикер через YahooFinance и выполняем связку
 			else if ((createdStock = YahooCreateStockBySymbol(symbol)) != null)
 			{
-				//Добавляем акцию в репозиторий и сразу проверяем недостающие котировки
+				//Добавляем акцию к пользователю
 				this._UsersRepository.AddStock(user, createdStock);
+				//Подгружаем все недостающие котировки
 				this.LoadMissingQuotes();
 				return $"Бумага {createdStock.Symbol} успешно добавлена из YahooFinance!";
 			}
@@ -325,10 +302,11 @@ namespace StocksHelper.ViewModels
 			return "При добавлении тикера произошла ошибка. Пожалуйста, вводите тикеры ТОЛЬКО с сайта finance.yahoo.com";
 		}
 
+		//Удаление акции по тикеру у пользователя
 		private string RemoveStockFromUser(User user, string symbol)
 		{
+			//Ищем акцию с таким тикером у пользователя и если нашли - удаляем
 			Stock stockToRemove = user.Stocks.FirstOrDefault(s => s.Symbol == symbol.ToUpper());
-
 			if (stockToRemove != null)
 			{
 				this._UsersRepository.RemoveStock(user.Id, stockToRemove.Id);
@@ -337,6 +315,46 @@ namespace StocksHelper.ViewModels
 			else
 				return "Акция с таким тикером не числится на вашем аккаунте!";
 		}
-		#endregion
+
+#region Разметки клавиатуры
+		private static IReplyMarkup GetMainMenuButtons()
+		{
+			return new ReplyKeyboardMarkup
+			{
+				Keyboard = new List<List<KeyboardButton>>
+				{
+					new List<KeyboardButton>{ new KeyboardButton { Text = "Мои акции"} },
+					new List<KeyboardButton>{ new KeyboardButton { Text = "Настройки"} }
+				},
+				ResizeKeyboard = true
+			};
+		}
+
+		private static IReplyMarkup GetMyStocksButtons()
+		{
+			return new ReplyKeyboardMarkup
+			{
+				Keyboard = new List<List<KeyboardButton>>
+				{
+					new List<KeyboardButton> { new KeyboardButton { Text = "Добавить акцию" }, new KeyboardButton { Text = "Удалить акцию" } },
+					new List<KeyboardButton> { new KeyboardButton { Text = "Список моих акций" } },
+					new List<KeyboardButton> { new KeyboardButton { Text = "Рекомендации" } },
+					new List<KeyboardButton> { new KeyboardButton { Text = "В главное меню" } },
+				},
+				ResizeKeyboard = true
+			};
+		}
+#endregion
+
+#region Вспомогательные методы
+		//Проверка является ли дата выходным днем
+		private bool IsWeekendDay(DateTime date)
+		{
+			if (date.DayOfWeek == DayOfWeek.Saturday || date.DayOfWeek == DayOfWeek.Sunday)
+				return true;
+			return false;
+		}
+#endregion
+#endregion
 	}
 }

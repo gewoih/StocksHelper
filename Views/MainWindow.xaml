@@ -5,7 +5,6 @@
 		xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
 		xmlns:local="clr-namespace:StocksHelper"
 		xmlns:vm="clr-namespace:StocksHelper.ViewModels"
-		xmlns:oxy="http://oxyplot.org/wpf"
 		mc:Ignorable="d"
 		Title="StocksHelper"
 		Height="500"
@@ -20,6 +19,14 @@
 	</Window.DataContext>
 
 	<Grid ShowGridLines="True">
-		
+		<DataGrid Margin="20" ItemsSource="{Binding LogRecords}" AutoGenerateColumns="False">
+			<DataGrid.Columns>
+				<DataGridTextColumn Header="id" Binding="{Binding Id}"/>
+				<DataGridTextColumn Header="Дата" Binding="{Binding DateTime}"/>
+				<DataGridTextColumn Header="От кого" Binding="{Binding FromUser.TelegramId}"/>
+				<DataGridTextColumn Header="Кому" Binding="{Binding ToUser.TelegramId}"/>
+				<DataGridTextColumn Header="Сообщение" Binding="{Binding Message}"/>
+			</DataGrid.Columns>
+		</DataGrid>
 	</Grid>
 </Window>
