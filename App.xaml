@@ -13,14 +13,6 @@
 				<ResourceDictionary Source="pack://application:,,,/MaterialDesignColors;component/Themes/Recommended/Primary/MaterialDesignColor.Blue.xaml" />
 				<ResourceDictionary Source="pack://application:,,,/MaterialDesignColors;component/Themes/Recommended/Accent/MaterialDesignColor.Purple.xaml" />
 			</ResourceDictionary.MergedDictionaries>
-
-			<DataTemplate DataType="{x:Type vm:AuthenticationViewModel}">
-				<view:AuthenticationView/>
-			</DataTemplate>
-
-			<DataTemplate DataType="{x:Type vm:StocksViewModel}">
-				<view:StocksView/>
-			</DataTemplate>
 		</ResourceDictionary>
 	</Application.Resources>
 </Application>

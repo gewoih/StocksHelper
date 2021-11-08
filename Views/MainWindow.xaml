@@ -20,30 +20,6 @@
 	</Window.DataContext>
 
 	<Grid ShowGridLines="True">
-		<Grid.ColumnDefinitions>
-			<ColumnDefinition/>
-			<ColumnDefinition Width="3*"/>
-		</Grid.ColumnDefinitions>
-
-		<ListView ItemsSource="{Binding Path=LoggedInUser.Stocks, UpdateSourceTrigger=PropertyChanged}" SelectedItem="{Binding SelectedStock}">
-			<ListView.ContextMenu>
-				<ContextMenu>
-					<MenuItem Header="Добавить акцию" Command="{Binding ShowNewStockWindowCommand}"/>
-					<MenuItem Header="Удалить акцию" Command="{Binding RemoveStockCommand}"/>
-				</ContextMenu>
-			</ListView.ContextMenu>
-			
-			<ListView.ItemTemplate>
-				<DataTemplate>
-					<TextBlock Text="{Binding Path=Name, UpdateSourceTrigger=PropertyChanged}" Foreground="White"/>
-				</DataTemplate>
-			</ListView.ItemTemplate>
-		</ListView>
-
-		<DockPanel Grid.Column="1">
-			<ContentControl Content="{Binding MainContentControl, UpdateSourceTrigger=PropertyChanged}" VerticalAlignment="Center" HorizontalAlignment="Center" Margin="20"
-							MaxWidth="{Binding RelativeSource={RelativeSource FindAncestor, AncestorType={x:Type UIElement}},Path=ActualWidth}"
-							MaxHeight="{Binding RelativeSource={RelativeSource FindAncestor, AncestorType={x:Type UIElement}},Path=ActualHeight}"/>
-		</DockPanel>
+		
 	</Grid>
 </Window>
