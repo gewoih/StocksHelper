@@ -6,7 +6,7 @@ namespace StocksHelper.Models
 {
 	public static class Indicators
 	{
-		public static double CalculateCCI(List<DataPoint> quotes, int period)
+		public static double CalculateCCI(List<StockQuote> quotes, int period)
 		{
 			//Индекс для удобства
 			int index = quotes.Count;
@@ -16,8 +16,8 @@ namespace StocksHelper.Models
 				double avgTp = 0;
 				for (int p = index - period; p < index; p++)
 				{
-					DataPoint d = quotes[p];
-					avgTp += d.Y;
+					StockQuote d = quotes[p];
+					avgTp += d.ClosePrice;
 				}
 				avgTp /= period;
 
@@ -25,39 +25,39 @@ namespace StocksHelper.Models
 				double avgDv = 0;
 				for (int p = index - period; p < index; p++)
 				{
-					DataPoint d = quotes[p];
-					avgDv += Math.Abs(avgTp - d.Y);
+					StockQuote d = quotes[p];
+					avgDv += Math.Abs(avgTp - d.ClosePrice);
 				}
 				avgDv /= period;
 
 				//Добавляем новое значение CCI по формуле
-				return (quotes[index-1].Y - avgTp) / (0.015 * avgDv);
+				return (quotes[index-1].ClosePrice - avgTp) / (0.015 * avgDv);
 			}
 			return 0;
 		}
 
-		public static double CalculateRSI(List<DataPoint> quotes, int period)
+		public static double CalculateRSI(List<StockQuote> quotes, int period)
 		{
-			double lastValue = quotes.Last().Y;
+			double lastValue = quotes.Last().ClosePrice;
 			double avgGain = 0;
 			double avgLoss = 0;
 
 			int size = quotes.Count;
-			List<DataPoint> results = new(size);
+			List<StockQuote> results = new(size);
 			double[] gain = new double[size]; // gain
 			double[] loss = new double[size]; // loss
 
 			for (int i = 0; i < quotes.Count; i++)
 			{
 				//Заполняем массив восходящих и нисходящих цен
-				DataPoint h = quotes[i];
+				StockQuote h = quotes[i];
 				int index = i + 1;
 
-				DataPoint RSIResult = new DataPoint(h.X, h.Y);
+				StockQuote RSIResult = new StockQuote { DateTime = h.DateTime, ClosePrice = h.ClosePrice };
 
-				gain[i] = (h.Y > lastValue) ? h.Y - lastValue : 0;
-				loss[i] = (h.Y < lastValue) ? lastValue - h.Y : 0;
-				lastValue = h.Y;
+				gain[i] = (h.ClosePrice > lastValue) ? h.ClosePrice - lastValue : 0;
+				loss[i] = (h.ClosePrice < lastValue) ? lastValue - h.ClosePrice : 0;
+				lastValue = h.ClosePrice;
 
 				//Вычисляем RSI
 				if (index > period + 1)
@@ -68,10 +68,10 @@ namespace StocksHelper.Models
 					if (avgLoss > 0)
 					{
 						double rs = avgGain / avgLoss;
-						RSIResult = new DataPoint(RSIResult.X, 100 - (100 / (1 + rs)));
+						RSIResult = new StockQuote { DateTime = RSIResult.DateTime, ClosePrice = 100 - (100 / (1 + rs)) };
 					}
 					else
-						RSIResult = new DataPoint(RSIResult.X, 100);
+						RSIResult = new StockQuote { DateTime = RSIResult.DateTime, ClosePrice = 100 };
 				}
 
 				//Расчет средней цены
@@ -88,12 +88,12 @@ namespace StocksHelper.Models
 					avgGain = sumGain / period;
 					avgLoss = sumLoss / period;
 
-					RSIResult = new DataPoint(RSIResult.X, (avgLoss > 0) ? 100 - (100 / (1 + (avgGain / avgLoss))) : 100);
+					RSIResult = new StockQuote { DateTime = RSIResult.DateTime, ClosePrice = (avgLoss > 0) ? 100 - (100 / (1 + (avgGain / avgLoss))) : 100 };
 				}
 				results.Add(RSIResult);
 			}
 
-			return results.Last().Y;
+			return results.Last().ClosePrice;
 		}
 	}
 }

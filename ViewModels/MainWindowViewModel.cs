@@ -191,14 +191,12 @@ namespace StocksHelper.ViewModels
 
 		private string GetAdviceForStock(Stock stock)
 		{
-			List<DataPoint> quotes = new List<DataPoint>();
-			//Заполняем котировки из БД. Обязательно сделать сортировку по дате для правильных расчетов индикаторов!
-			new StocksQuotesRepository(new BaseDataContext()).GetAll().Where(s => s.Stock.Id == stock.Id).OrderBy(q => q.DateTime).ToList().ForEach(q => quotes.Add(new DataPoint(q.DateTime.ToOADate(), q.ClosePrice)));
+			List<StockQuote> quotes = new StocksQuotesRepository(new BaseDataContext()).GetAll().Where(s => s.Stock.Id == stock.Id).OrderBy(q => q.DateTime).ToList();
 
 			//Рассчет индикаторов
 			double CCI = Indicators.CalculateCCI(quotes, 50);
 			double RSI = Indicators.CalculateRSI(quotes, 14);
-			string answer = $"Показатели по акции {stock.Name} [{stock.Symbol}] за {stock.StockQuotes.Last().DateTime.ToString("D")}: [{Math.Round(CCI, 2)};{Math.Round(RSI, 2)}]\n" +
+			string answer = $"Показатели по акции {stock.Name} [{stock.Symbol}] за {quotes.Last().DateTime}: [{Math.Round(CCI, 2)};{Math.Round(RSI, 2)}]\n" +
 							"Вердикт: ";
 
 			//Формируем вердикт
@@ -257,7 +255,7 @@ namespace StocksHelper.ViewModels
 						//Если котировка на более позднюю дату, чем нам нужно - обрабатываем ее
 						if (quoteDateTime > stocks[stock_index].Value)
 						{
-							StockQuote newQuote = new StockQuote { StockId = stock.Id, DateTime = new DateTime(1970, 1, 1, 0, 0, 0, 0).AddSeconds((double)result.timestamp[j]).ToLocalTime(), ClosePrice = result.close[j] };
+							StockQuote newQuote = new StockQuote { StockId = stock.Id, DateTime = quoteDateTime, ClosePrice = result.close[j] };
 							quotes.Add(newQuote);
 						}
 					}
