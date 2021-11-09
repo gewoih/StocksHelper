@@ -32,13 +32,17 @@ namespace StocksHelper.ViewModels
 			this.LogRecords = new ObservableCollection<LogRecord>(new LogRecordsRepository(new BaseDataContext()).GetAll());
 
 			//Загружаем недостающие котировки по всем акциям при запуске приложения
-			//this.LoadMissingQuotes();
+			var watcher = Stopwatch.StartNew();
+			this.LoadMissingQuotes();
+			watcher.Stop();
+			MessageBox.Show($"Затрачено времени на рассылку: {Math.Round((double)watcher.ElapsedMilliseconds / 1000, 2)}");
 		}
 		#endregion
 
 		#region Properties
 		private TelegramBotClient BotClient;
 
+		//Коллекция логов с привязкой к DataGridView
 		private ObservableCollection<LogRecord> _LogRecords;
 		public ObservableCollection<LogRecord> LogRecords
 		{
@@ -56,16 +60,18 @@ namespace StocksHelper.ViewModels
 
 		private async void OnMessageHandler(object sender, MessageEventArgs e)
 		{
+			//Создаем Stopwatch для замера скорости обработки запроса
 			var watcher = Stopwatch.StartNew();
 
 			var msg = e.Message;
+			//Итоговые переменные, по которым будем формировать ответ
 			Telegram.Bot.Types.ChatId answerChatId = msg.Chat.Id;
 			string answerMessage = "Выберите команду:";
 			IReplyMarkup answerReplyMarkup = GetMainMenuButtons();
 			//Ищем пользователя по telegramId
 			User user = new UsersRepository(new BaseDataContext()).GetAll().FirstOrDefault(u => u.TelegramId == msg.From.Id.ToString());
 
-			//Зарегистрировать пользователя, если он не найден
+			//Зарегистрировать пользователя, если он не найден и отправить ему приветственное сообщение
 			if (user == null)
 			{
 				user = this.RegisterUser(msg.From.Username, msg.From.Id.ToString());
@@ -128,6 +134,16 @@ namespace StocksHelper.ViewModels
 						break;
 				}
 
+				//Отправляем пользователю сформированный ответ
+				await this.BotClient.SendTextMessageAsync
+				(
+					chatId: answerChatId,
+					text: answerMessage,
+					replyMarkup: answerReplyMarkup
+				);
+
+				//Добавляем новую запись в коллекцию LogRecords через главного диспетчера приложения
+				//Отрисовка на форме может выполняться только из основного потока (через диспетчера)
 				Application.Current.Dispatcher.Invoke
 				(
 					new Action(() =>
@@ -141,16 +157,9 @@ namespace StocksHelper.ViewModels
 					DispatcherPriority.Normal
 				);
 
-				await this.BotClient.SendTextMessageAsync
-				(
-					chatId: answerChatId,
-					text: answerMessage,
-					replyMarkup: answerReplyMarkup
-				);
-
+				//Отправляем дополнительное сообщение пользователю с временем, потраченным на запрос (для отладки)
 				watcher.Stop();
 				string totalTime = $"Затраченное время: {Math.Round((double)watcher.ElapsedMilliseconds / 1000, 2)}с.";
-
 				await this.BotClient.SendTextMessageAsync
 				(
 					chatId: answerChatId,
@@ -167,41 +176,23 @@ namespace StocksHelper.ViewModels
 
 			WebClient webClient = new WebClient();
 			webClient.Headers.Add("accept: application/json");
-			webClient.Headers.Add($"X-API-KEY: {ConfigurationManager.AppSettings["YahooFinanceAPI1"]}");
+			webClient.Headers.Add($"X-API-KEY: {ConfigurationManager.AppSettings["YahooFinanceAPI3"]}");
 
 			string response = webClient.DownloadString($"https://yfapi.net/v7/finance/options/{symbol}?date={currentTimestamp}");
 			dynamic obj = JsonConvert.DeserializeObject(response);
 			var result = obj.optionChain.result;
+
+			//Проверка не пустой ли результат json и подходит ли бумага по параметрам
 			if (result.Count == 0 || (bool)result[0].quote.triggerable == false)
 				return null;
 			//Найденную акцию сразу добавляем в БД и возвращаем ее результатом метода для дальнейшей обработки
 			return new StocksRepository(new BaseDataContext()).Create(new Stock { Symbol = symbol.ToUpper(), Name = result[0].quote.shortName });
 		}
 
-		private async void SendNotifications(int stockId, List<User> usersToNotify = null)
-		{
-			//Находим акцию по id и получаем по ней сигнал
-			Stock stock = new StocksRepository(new BaseDataContext()).GetById(stockId);
-			string advice = this.GetAdviceForStock(stock);
-
-			//Список пользователей, которым нужно прислать уведомление
-			//Если его не передали аргументом - берем всех пользователей, у которых есть заданная акций
-			if (usersToNotify == null)
-				usersToNotify = new UsersRepository(new BaseDataContext()).GetAll().Where(u => u.Stocks.Contains(stock)).ToList();
-
-			foreach (var user in usersToNotify)
-			{
-				await this.BotClient.SendTextMessageAsync
-				(
-					chatId: user.TelegramId,
-					text: advice
-				);
-			}
-		}
-
 		private string GetAdviceForStock(Stock stock)
 		{
 			List<DataPoint> quotes = new List<DataPoint>();
+			//Заполняем котировки из БД. Обязательно сделать сортировку по дате для правильных расчетов индикаторов!
 			new StocksQuotesRepository(new BaseDataContext()).GetAll().Where(s => s.Stock.Id == stock.Id).OrderBy(q => q.DateTime).ToList().ForEach(q => quotes.Add(new DataPoint(q.DateTime.ToOADate(), q.ClosePrice)));
 
 			//Рассчет индикаторов
@@ -210,7 +201,7 @@ namespace StocksHelper.ViewModels
 			string answer = $"Показатели по акции {stock.Name} [{stock.Symbol}] за {stock.StockQuotes.Last().DateTime.ToString("D")}: [{Math.Round(CCI, 2)};{Math.Round(RSI, 2)}]\n" +
 							"Вердикт: ";
 
-			//Вердикт
+			//Формируем вердикт
 			if (CCI >= 300 || RSI >= 85)
 				answer += "🔴Продавать🔴";
 			else if (CCI <= -120 || RSI <= 35)
@@ -221,6 +212,7 @@ namespace StocksHelper.ViewModels
 			return answer;
 		}
 
+		//Получаем список советов по всем акциям пользователя
 		private string GetAdvicesForUserStocks(User user)
 		{
 			string answer = String.Empty;
@@ -230,32 +222,71 @@ namespace StocksHelper.ViewModels
 		}
 
 		//Получение котировок акции за период через YahooFinance
-		private List<StockQuote> GetStockQuotes(Stock stock, DateTime fromDateTime)
+		private List<StockQuote> GetStockQuotes(List<KeyValuePair<Stock, DateTime>> stocks)
 		{
 			//Установка интервала и диапазона для выгрузки котировок
 			string interval = "1d"; //1m, 5m, 15m, 1d, 1wk, 1mo
 			string range = "3mo"; //1d, 5d, 1mo, 3mo, 6mo, 1y, 5y, max
+			List<StockQuote> quotes = new List<StockQuote>();
+			List<List<Stock>> newStocks = stocks.Select((x, y) => new { Index = y, Value = x.Key })
+				.GroupBy(x => x.Index / 20)
+				.Select(x => x.Select(y => y.Value).ToList())
+				.ToList();
 
 			WebClient webClient = new WebClient();
 			webClient.Headers.Add("accept: application/json");
-			webClient.Headers.Add($"X-API-KEY: {ConfigurationManager.AppSettings["YahooFinanceAPI1"]}");
+			webClient.Headers.Add($"X-API-KEY: {ConfigurationManager.AppSettings["YahooFinanceAPI3"]}");
 
-			string response = webClient.DownloadString($"https://yfapi.net/v8/finance/spark?interval={interval}&range={range}&symbols={stock.Symbol}");
-			dynamic obj = JsonConvert.DeserializeObject(response);
-			var result = obj[stock.Symbol];
-
-			//Формируем список котировок и возвращаем его
-			List<StockQuote> quotes = new List<StockQuote>();
-			for (int i = 0; i < result.timestamp.Count; i++)
+			int stock_index = 0;
+			foreach (var stocksList in newStocks)
 			{
-				DateTime quoteDateTime = new DateTime(1970, 1, 1, 0, 0, 0, 0).AddSeconds((double)result.timestamp[i]).ToLocalTime();
-				if (quoteDateTime > fromDateTime)
+				string symbols = string.Empty;
+				stocksList.ForEach(s => symbols += s.Symbol + ",");
+
+				string response = webClient.DownloadString($"https://yfapi.net/v8/finance/spark?interval={interval}&range={range}&symbols={symbols}");
+				dynamic obj = JsonConvert.DeserializeObject(response);
+
+				foreach (var stock in stocksList)
 				{
-					StockQuote newQuote = new StockQuote { StockId = stock.Id, DateTime = new DateTime(1970, 1, 1, 0, 0, 0, 0).AddSeconds((double)result.timestamp[i]).ToLocalTime(), ClosePrice = result.close[i] };
-					quotes.Add(newQuote);
+					var result = obj[stock.Symbol];
+
+					//Формируем список котировок и возвращаем его
+					for (int j = 0; j < result.timestamp.Count; j++)
+					{
+						DateTime quoteDateTime = new DateTime(1970, 1, 1, 0, 0, 0, 0).AddSeconds((double)result.timestamp[j]).ToLocalTime();
+						//Если котировка на более позднюю дату, чем нам нужно - обрабатываем ее
+						if (quoteDateTime > stocks[stock_index].Value)
+						{
+							StockQuote newQuote = new StockQuote { StockId = stock.Id, DateTime = new DateTime(1970, 1, 1, 0, 0, 0, 0).AddSeconds((double)result.timestamp[j]).ToLocalTime(), ClosePrice = result.close[j] };
+							quotes.Add(newQuote);
+						}
+					}
+					stock_index++;
 				}
 			}
 			return quotes;
+		}
+
+		private async void SendNotifications(Stock stock, List<User> usersToNotify = null)
+		{
+			//Находим акцию по id и получаем по ней сигнал
+			//Stock stock = new StocksRepository(new BaseDataContext()).GetById(stockId);
+			string advice = this.GetAdviceForStock(stock);
+
+			//Список пользователей, которым нужно прислать уведомление
+			//Если его не передали аргументом - берем всех пользователей, у которых есть заданная акций
+			if (usersToNotify == null)
+				usersToNotify = new UsersRepository(new BaseDataContext()).GetAll().Where(u => u.Stocks.Contains(stock)).ToList();
+
+			//Проходим по каждому пользователю, которого нужно оповестить и отправляем ему рекомендацию
+			foreach (var user in usersToNotify)
+			{
+				await this.BotClient.SendTextMessageAsync
+				(
+					chatId: user.TelegramId,
+					text: advice
+				);
+			}
 		}
 
 		//Подгрузка недостающих котировок по всем акциям (или одной акции) и отправка уведомлений владельцам
@@ -269,27 +300,16 @@ namespace StocksHelper.ViewModels
 			else
 				stocks = new List<Stock>() { stock };
 
-			//Проходим по всем акциям и проверяем время их последних котировок
-			for (int i = 0; i < stocks.Count; i++)
+			List<KeyValuePair<Stock, DateTime>> stocksList = new List<KeyValuePair<Stock, DateTime>>();
+			foreach (var s in stocks)
 			{
-				//Получаем дату последней котировки
-				DateTime lastQuoteDateTime = stocks[i].GetDateTimeLastQuote();
+				DateTime lastQuoteDateTime = s.GetDateTimeLastQuote();
 
-				//Флаг есть ли у акции новые котировки
-				bool hasNewQuotes = false;
-
-				//Если у акции нет котировок или если день, СЛЕДУЮЩИЙ за датой последней котировки НЕ выходной, то подгружаем котировки
-				//ПЕРЕДЕЛАТЬ МЕТОД ISWEEKENDDAY. НЕПРАВИЛЬНАЯ ЛОГИКА.
-				if (stocks[i].StockQuotes.Count == 0 || !this.IsWeekendDay(stocks[i].GetDateTimeLastQuote().AddDays(1)))
-				{
-					new StocksQuotesRepository(new BaseDataContext()).Create(this.GetStockQuotes(stocks[i], lastQuoteDateTime));
-					hasNewQuotes = true;
-				}
-
-				//Если у акции есть новые котировки - отправляем уведомления всем владельцам этой акции
-				if (hasNewQuotes)
-					this.SendNotifications(stocks[i].Id);
+				if (this.IsNeedToUploadQuotes(lastQuoteDateTime))
+					stocksList.Add(new KeyValuePair<Stock, DateTime>(s, lastQuoteDateTime));
 			}
+			new StocksQuotesRepository(new BaseDataContext()).Create(this.GetStockQuotes(stocksList));
+			stocksList.ForEach(s => this.SendNotifications(s.Key));
 		}
 
 		//Регистрируем пользователя с соответствующим именем и telegramId
@@ -318,16 +338,16 @@ namespace StocksHelper.ViewModels
 				else
 					return "Данная акция уже числится на вашем аккаунте.";
 			}
-			//Если не находим акцию в БД - ищем такой тикер через YahooFinance и выполняем связку
+			//Если не находим акцию в БД - ищем такой тикер через YahooFinance и добавляем к пользователю
 			else if ((createdStock = YahooCreateStockBySymbol(symbol)) != null)
 			{
-				//Добавляем акцию к пользователю
+				//Добавляем акцию к пользователю (обязательно через Id)
 				new UsersRepository(new BaseDataContext()).AddStock(user.Id, createdStock.Id);
-				//Подгружаем все недостающие котировки по созданной акции
+				//Подгружаем все недостающие котировки по только что созданной акции
 				this.LoadMissingQuotes(createdStock);
 				return $"Бумага {createdStock.Symbol} успешно добавлена из YahooFinance!";
 			}
-			//Не находим такой тикер на YahooFinance - сообщение об ошибке
+			//Не находим такой тикер на YahooFinance и в БД - сообщение об ошибке
 			return "При добавлении тикера произошла ошибка. Пожалуйста, вводите тикеры ТОЛЬКО с сайта finance.yahoo.com";
 		}
 
@@ -338,6 +358,7 @@ namespace StocksHelper.ViewModels
 			Stock stockToRemove = user.Stocks.FirstOrDefault(s => s.Symbol == symbol.ToUpper());
 			if (stockToRemove != null)
 			{
+				//Удаляем обязательно через Id
 				new UsersRepository(new BaseDataContext()).RemoveStock(user.Id, stockToRemove.Id);
 				return "Данная акция успешно удалена с вашего аккаунта.";
 			}
@@ -345,7 +366,8 @@ namespace StocksHelper.ViewModels
 				return "Акция с таким тикером не числится на вашем аккаунте!";
 		}
 
-#region Разметки клавиатуры
+		#region Разметки клавиатуры
+		//Главное меню
 		private static IReplyMarkup GetMainMenuButtons()
 		{
 			return new ReplyKeyboardMarkup
@@ -359,6 +381,7 @@ namespace StocksHelper.ViewModels
 			};
 		}
 
+		//Меню "Акции"
 		private static IReplyMarkup GetMyStocksButtons()
 		{
 			return new ReplyKeyboardMarkup
@@ -373,17 +396,24 @@ namespace StocksHelper.ViewModels
 				ResizeKeyboard = true
 			};
 		}
-#endregion
+		#endregion
 
-#region Вспомогательные методы
-		//Проверка является ли дата выходным днем
-		private bool IsWeekendDay(DateTime date)
+		#region Вспомогательные методы
+		//Проверка нужно ли загружать котировки
+		private bool IsNeedToUploadQuotes(DateTime date)
 		{
-			if (date.DayOfWeek == DayOfWeek.Saturday || date.DayOfWeek == DayOfWeek.Sunday)
+			//Текущая дата
+			DateTime now = DateTime.Now;
+
+			//Если дата котировки меньше текущей больше чем на один день, то нужно загрузить котировки
+			if (date.AddDays(1) < now && 
+					now.DayOfWeek != DayOfWeek.Saturday && 
+					now.DayOfWeek != DayOfWeek.Sunday &&
+					now.DayOfWeek != DayOfWeek.Monday)
 				return true;
 			return false;
 		}
-#endregion
-#endregion
+		#endregion
+		#endregion
 	}
 }
