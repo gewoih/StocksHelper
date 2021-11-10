@@ -16,6 +16,7 @@ using System.Threading;
 using System.Windows.Threading;
 using System.Windows;
 using System.Diagnostics;
+using System.Threading.Tasks;
 
 namespace StocksHelper.ViewModels
 {
@@ -25,17 +26,14 @@ namespace StocksHelper.ViewModels
 		public MainWindowViewModel()
 		{
 			this.BotClient = new TelegramBotClient(ConfigurationManager.AppSettings["TelegramBotAPI"]);
-
 			this.ConfigureTelegramBot(this.BotClient);
-
 			//Загрузка логов
 			this.LogRecords = new ObservableCollection<LogRecord>(new LogRecordsRepository(new BaseDataContext()).GetAll());
+			this._StopWatcher = new Stopwatch();
 
-			//Загружаем недостающие котировки по всем акциям при запуске приложения
-			var watcher = Stopwatch.StartNew();
-			this.LoadMissingQuotes();
-			watcher.Stop();
-			MessageBox.Show($"Затрачено времени на рассылку: {Math.Round((double)watcher.ElapsedMilliseconds / 1000, 2)}");
+			DispatcherTimer mainTimer = new DispatcherTimer() { Interval = new TimeSpan(0, 0, 10) };
+			mainTimer.Tick += this.MainTimer_Tick;
+			mainTimer.Start();
 		}
 		#endregion
 
@@ -49,6 +47,8 @@ namespace StocksHelper.ViewModels
 			get => _LogRecords;
 			set => Set(ref _LogRecords, value);
 		}
+
+		private Stopwatch _StopWatcher;
 		#endregion
 
 		#region Methods
@@ -56,6 +56,19 @@ namespace StocksHelper.ViewModels
 		{
 			botClient.StartReceiving();
 			botClient.OnMessage += OnMessageHandler;
+		}
+
+		private void MainTimer_Tick(object sender, object e)
+		{
+			DateTime currentDateTime = DateTime.Now;
+			if (currentDateTime.DayOfWeek != DayOfWeek.Saturday &&
+				currentDateTime.DayOfWeek != DayOfWeek.Sunday &&
+				currentDateTime.Hour == 17)
+			{
+				this._StopWatcher = Stopwatch.StartNew();
+				this.LoadMissingQuotes();
+				this._StopWatcher.Stop();
+			}
 		}
 
 		private async void OnMessageHandler(object sender, MessageEventArgs e)
@@ -268,12 +281,13 @@ namespace StocksHelper.ViewModels
 
 		private async void SendNotifications(List<Stock> stocks)
 		{
+			//Брать только тех юзеров, у которых есть хоть одна акция из stocks
 			Dictionary<User, string> usersToNotify = new Dictionary<User, string>();
 			new UsersRepository(new BaseDataContext()).GetAll().ToList().ForEach(u => usersToNotify.Add(u, "Ежедневный отчет по вашим акциям:\n\n"));
 
 			foreach (var stock in stocks)
 			{
-				List<User> users = usersToNotify.Where(u => u.Key != null).Select(u => u.Key).ToList();
+				List<User> users = usersToNotify.Select(u => u.Key).ToList();
 				string advice = this.GetAdviceForStock(stock);
 
 				foreach (var user in users)
@@ -295,6 +309,19 @@ namespace StocksHelper.ViewModels
 					);
 				}
 			}
+
+			Application.Current.Dispatcher.Invoke
+			(
+				new Action(() =>
+					this.LogRecords.Add(new LogRecordsRepository(new BaseDataContext()).Create(
+						new LogRecord
+						{
+							DateTime = DateTime.Now,
+							Message = $"Рассылка рекомендаций успешно завершена. {stocks.Count} акций для {usersToNotify.Count} пользователей.\n" +
+								$"Затрачено времени: {Math.Round((double)this._StopWatcher.ElapsedMilliseconds / 1000, 2)}с."
+						}))),
+				DispatcherPriority.Normal
+			);
 		}
 
 		//Подгрузка недостающих котировок по всем акциям (или одной акции) и отправка уведомлений владельцам
