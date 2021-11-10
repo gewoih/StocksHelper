@@ -196,7 +196,7 @@ namespace StocksHelper.ViewModels
 			//Рассчет индикаторов
 			double CCI = Indicators.CalculateCCI(quotes, 50);
 			double RSI = Indicators.CalculateRSI(quotes, 14);
-			string answer = $"Показатели по акции {stock.Name} [{stock.Symbol}] за {quotes.Last().DateTime}: [{Math.Round(CCI, 2)};{Math.Round(RSI, 2)}]\n" +
+			string answer = $"{stock.Name} [{stock.Symbol}] за {quotes.Last().DateTime}: [{Math.Round(CCI, 2)};{Math.Round(RSI, 2)}]\n" +
 							"Вердикт: ";
 
 			//Формируем вердикт
@@ -225,6 +225,7 @@ namespace StocksHelper.ViewModels
 			//Установка интервала и диапазона для выгрузки котировок
 			string interval = "1d"; //1m, 5m, 15m, 1d, 1wk, 1mo
 			string range = "3mo"; //1d, 5d, 1mo, 3mo, 6mo, 1y, 5y, max
+
 			List<StockQuote> quotes = new List<StockQuote>();
 			List<List<Stock>> newStocks = stocks.Select((x, y) => new { Index = y, Value = x.Key })
 				.GroupBy(x => x.Index / 20)
@@ -265,25 +266,34 @@ namespace StocksHelper.ViewModels
 			return quotes;
 		}
 
-		private async void SendNotifications(Stock stock, List<User> usersToNotify = null)
+		private async void SendNotifications(List<Stock> stocks)
 		{
-			//Находим акцию по id и получаем по ней сигнал
-			//Stock stock = new StocksRepository(new BaseDataContext()).GetById(stockId);
-			string advice = this.GetAdviceForStock(stock);
+			Dictionary<User, string> usersToNotify = new Dictionary<User, string>();
+			new UsersRepository(new BaseDataContext()).GetAll().ToList().ForEach(u => usersToNotify.Add(u, "Ежедневный отчет по вашим акциям:\n\n"));
 
-			//Список пользователей, которым нужно прислать уведомление
-			//Если его не передали аргументом - берем всех пользователей, у которых есть заданная акций
-			if (usersToNotify == null)
-				usersToNotify = new UsersRepository(new BaseDataContext()).GetAll().Where(u => u.Stocks.Contains(stock)).ToList();
+			foreach (var stock in stocks)
+			{
+				List<User> users = usersToNotify.Where(u => u.Key != null).Select(u => u.Key).ToList();
+				string advice = this.GetAdviceForStock(stock);
+
+				foreach (var user in users)
+				{
+					if (user.Stocks.Any(s => s.Id == stock.Id))
+						usersToNotify[user] += advice + "\n\n";
+				}
+			}
 
 			//Проходим по каждому пользователю, которого нужно оповестить и отправляем ему рекомендацию
 			foreach (var user in usersToNotify)
 			{
-				await this.BotClient.SendTextMessageAsync
-				(
-					chatId: user.TelegramId,
-					text: advice
-				);
+				if (user.Value != String.Empty)
+				{
+					await this.BotClient.SendTextMessageAsync
+					(
+						chatId: user.Key.TelegramId,
+						text: user.Value
+					);
+				}
 			}
 		}
 
@@ -307,7 +317,9 @@ namespace StocksHelper.ViewModels
 					stocksList.Add(new KeyValuePair<Stock, DateTime>(s, lastQuoteDateTime));
 			}
 			new StocksQuotesRepository(new BaseDataContext()).Create(this.GetStockQuotes(stocksList));
-			stocksList.ForEach(s => this.SendNotifications(s.Key));
+
+			if (stocksList.Count != 0)
+				this.SendNotifications(stocksList.Select(s => s.Key).ToList());
 		}
 
 		//Регистрируем пользователя с соответствующим именем и telegramId
@@ -404,10 +416,7 @@ namespace StocksHelper.ViewModels
 			DateTime now = DateTime.Now;
 
 			//Если дата котировки меньше текущей больше чем на один день, то нужно загрузить котировки
-			if (date.AddDays(1) < now && 
-					now.DayOfWeek != DayOfWeek.Saturday && 
-					now.DayOfWeek != DayOfWeek.Sunday &&
-					now.DayOfWeek != DayOfWeek.Monday)
+			if (date.AddDays(1) < now && now.DayOfWeek != DayOfWeek.Saturday && now.DayOfWeek != DayOfWeek.Sunday)
 				return true;
 			return false;
 		}
