@@ -31,7 +31,7 @@ namespace StocksHelper.ViewModels
 			this.LogRecords = new ObservableCollection<LogRecord>(new LogRecordsRepository(new BaseDataContext()).GetAll());
 			this._StopWatcher = new Stopwatch();
 
-			DispatcherTimer mainTimer = new DispatcherTimer() { Interval = new TimeSpan(0, 0, 10) };
+			DispatcherTimer mainTimer = new DispatcherTimer() { Interval = new TimeSpan(0, 0, 5) };
 			mainTimer.Tick += this.MainTimer_Tick;
 			mainTimer.Start();
 		}
@@ -63,7 +63,7 @@ namespace StocksHelper.ViewModels
 			DateTime currentDateTime = DateTime.Now;
 			if (currentDateTime.DayOfWeek != DayOfWeek.Saturday &&
 				currentDateTime.DayOfWeek != DayOfWeek.Sunday &&
-				currentDateTime.Hour == 17)
+				currentDateTime.Hour == 18)
 			{
 				this._StopWatcher = Stopwatch.StartNew();
 				this.LoadMissingQuotes();
@@ -148,12 +148,16 @@ namespace StocksHelper.ViewModels
 				}
 
 				//Отправляем пользователю сформированный ответ
-				await this.BotClient.SendTextMessageAsync
-				(
-					chatId: answerChatId,
-					text: answerMessage,
-					replyMarkup: answerReplyMarkup
-				);
+				while (answerMessage.Length != 0)
+				{
+					await this.BotClient.SendTextMessageAsync
+					(
+						chatId: answerChatId,
+						text: answerMessage.Substring(0, Math.Min(answerMessage.Length, 4096)),
+						replyMarkup: answerReplyMarkup
+					);
+					answerMessage = answerMessage.Substring(Math.Min(answerMessage.Length, 4096));
+				}
 
 				//Добавляем новую запись в коллекцию LogRecords через главного диспетчера приложения
 				//Отрисовка на форме может выполняться только из основного потока (через диспетчера)
@@ -206,10 +210,13 @@ namespace StocksHelper.ViewModels
 		{
 			List<StockQuote> quotes = new StocksQuotesRepository(new BaseDataContext()).GetAll().Where(s => s.Stock.Id == stock.Id).OrderBy(q => q.DateTime).ToList();
 
+			if (quotes.Count == 0)
+				return $"У акции {stock.Name} [{stock.Symbol}] нет загруженных котировок";
+
 			//Рассчет индикаторов
 			double CCI = Indicators.CalculateCCI(quotes, 50);
 			double RSI = Indicators.CalculateRSI(quotes, 14);
-			string answer = $"{stock.Name} [{stock.Symbol}] за {quotes.Last().DateTime}: [{Math.Round(CCI, 2)};{Math.Round(RSI, 2)}]\n" +
+			string answer = $"{stock.Name} [{stock.Symbol}] за {quotes.Last().DateTime}: [{quotes.Last().ClosePrice}: {Math.Round(CCI, 2)}, {Math.Round(RSI, 2)}]\n" +
 							"Вердикт: ";
 
 			//Формируем вердикт
@@ -227,6 +234,10 @@ namespace StocksHelper.ViewModels
 		private string GetAdvicesForUserStocks(User user)
 		{
 			string answer = String.Empty;
+
+			if (user.Stocks.Count == 0)
+				return "У вас пока нет добавленных акций.";
+
 			user.Stocks.ToList().ForEach(s => answer += this.GetAdviceForStock(s) + "\n\n");
 
 			return answer;
@@ -443,7 +454,7 @@ namespace StocksHelper.ViewModels
 			DateTime now = DateTime.Now;
 
 			//Если дата котировки меньше текущей больше чем на один день, то нужно загрузить котировки
-			if (date.AddDays(1) < now && now.DayOfWeek != DayOfWeek.Saturday && now.DayOfWeek != DayOfWeek.Sunday)
+			if (date.AddHours(6) < now)
 				return true;
 			return false;
 		}
