@@ -25,21 +25,18 @@ namespace StocksHelper.ViewModels
 		#region Constructor
 		public MainWindowViewModel()
 		{
-			this.BotClient = new TelegramBotClient(ConfigurationManager.AppSettings["TelegramBotAPI"]);
-			this.ConfigureTelegramBot(this.BotClient);
+			TelegramBot.ConfigureTelegramBot(this.OnMessageHandler);
 			//Загрузка логов
 			this.LogRecords = new ObservableCollection<LogRecord>(new LogRecordsRepository(new BaseDataContext()).GetAll());
 			this._StopWatcher = new Stopwatch();
 
-			DispatcherTimer mainTimer = new DispatcherTimer() { Interval = new TimeSpan(0, 0, 5) };
+			DispatcherTimer mainTimer = new DispatcherTimer() { Interval = new TimeSpan(0, 0, 10) };
 			mainTimer.Tick += this.MainTimer_Tick;
 			mainTimer.Start();
 		}
 		#endregion
 
 		#region Properties
-		private TelegramBotClient BotClient;
-
 		//Коллекция логов с привязкой к DataGridView
 		private ObservableCollection<LogRecord> _LogRecords;
 		public ObservableCollection<LogRecord> LogRecords
@@ -52,18 +49,12 @@ namespace StocksHelper.ViewModels
 		#endregion
 
 		#region Methods
-		private void ConfigureTelegramBot(TelegramBotClient botClient)
-		{
-			botClient.StartReceiving();
-			botClient.OnMessage += OnMessageHandler;
-		}
-
 		private void MainTimer_Tick(object sender, object e)
 		{
 			DateTime currentDateTime = DateTime.Now;
 			if (currentDateTime.DayOfWeek != DayOfWeek.Saturday &&
 				currentDateTime.DayOfWeek != DayOfWeek.Sunday &&
-				currentDateTime.Hour == 18)
+				currentDateTime.Hour == 16)
 			{
 				this._StopWatcher = Stopwatch.StartNew();
 				this.LoadMissingQuotes();
@@ -135,7 +126,7 @@ namespace StocksHelper.ViewModels
 						break;
 
 					default:
-						if (msg.ReplyToMessage != null && msg.ReplyToMessage.From.Id == this.BotClient.BotId)
+						if (msg.ReplyToMessage != null && msg.ReplyToMessage.From.Id == TelegramBot.Client.BotId)
 						{
 							if (msg.ReplyToMessage.Text == "Введите тикер акции для добавления:")
 								answerMessage = this.AddStockToUser(user, msg.Text);
@@ -148,40 +139,17 @@ namespace StocksHelper.ViewModels
 				}
 
 				//Отправляем пользователю сформированный ответ
-				while (answerMessage.Length != 0)
-				{
-					await this.BotClient.SendTextMessageAsync
-					(
-						chatId: answerChatId,
-						text: answerMessage.Substring(0, Math.Min(answerMessage.Length, 4096)),
-						replyMarkup: answerReplyMarkup
-					);
-					answerMessage = answerMessage.Substring(Math.Min(answerMessage.Length, 4096));
-				}
-
-				//Добавляем новую запись в коллекцию LogRecords через главного диспетчера приложения
-				//Отрисовка на форме может выполняться только из основного потока (через диспетчера)
-				Application.Current.Dispatcher.Invoke
-				(
-					new Action(() =>
-						this.LogRecords.Add(new LogRecordsRepository(new BaseDataContext()).Create(
-							new LogRecord
-							{
-								DateTime = DateTime.Now,
-								FromUser = user,
-								Message = $"Запрос: {msg.Text}\nОтвет: {answerMessage}"
-							}))),
-					DispatcherPriority.Normal
-				);
-
-				//Отправляем дополнительное сообщение пользователю с временем, потраченным на запрос (для отладки)
 				watcher.Stop();
-				string totalTime = $"Затраченное время: {Math.Round((double)watcher.ElapsedMilliseconds / 1000, 2)}с.";
-				await this.BotClient.SendTextMessageAsync
-				(
-					chatId: answerChatId,
-					text: totalTime
-				);
+				string totalTimeMessage = $"Затраченное время: {Math.Round((double)watcher.ElapsedMilliseconds / 1000, 2)}сек.";
+
+				await TelegramBot.SendMessageAsync(answerChatId, answerMessage, answerReplyMarkup);
+				await TelegramBot.SendMessageAsync(answerChatId, totalTimeMessage);
+				Logger.CreateLog(new LogRecord
+				{ 
+					DateTime = DateTime.Now, 
+					FromUser = user, 
+					Message = $"Запрос: {msg.Text}\n" + $"Ответ: {answerMessage}\n\n" + totalTimeMessage
+				}, this.LogRecords);
 			}
 		}
 
@@ -193,7 +161,7 @@ namespace StocksHelper.ViewModels
 
 			WebClient webClient = new WebClient();
 			webClient.Headers.Add("accept: application/json");
-			webClient.Headers.Add($"X-API-KEY: {ConfigurationManager.AppSettings["YahooFinanceAPI3"]}");
+			webClient.Headers.Add($"X-API-KEY: {ConfigurationManager.AppSettings["YahooFinanceAPI2"]}");
 
 			string response = webClient.DownloadString($"https://yfapi.net/v7/finance/options/{symbol}?date={currentTimestamp}");
 			dynamic obj = JsonConvert.DeserializeObject(response);
@@ -258,7 +226,7 @@ namespace StocksHelper.ViewModels
 
 			WebClient webClient = new WebClient();
 			webClient.Headers.Add("accept: application/json");
-			webClient.Headers.Add($"X-API-KEY: {ConfigurationManager.AppSettings["YahooFinanceAPI3"]}");
+			webClient.Headers.Add($"X-API-KEY: {ConfigurationManager.AppSettings["YahooFinanceAPI2"]}");
 
 			int stock_index = 0;
 			foreach (var stocksList in newStocks)
@@ -292,9 +260,13 @@ namespace StocksHelper.ViewModels
 
 		private async void SendNotifications(List<Stock> stocks)
 		{
+			if (stocks.Count == 0)
+				return;
+
 			//Брать только тех юзеров, у которых есть хоть одна акция из stocks
 			Dictionary<User, string> usersToNotify = new Dictionary<User, string>();
-			new UsersRepository(new BaseDataContext()).GetAll().ToList().ForEach(u => usersToNotify.Add(u, "Ежедневный отчет по вашим акциям:\n\n"));
+			new UsersRepository(new BaseDataContext()).GetAll().ToList().ForEach(u => usersToNotify.Add(u, String.Empty));
+			int notifiedUsers = 0;
 
 			foreach (var stock in stocks)
 			{
@@ -313,26 +285,19 @@ namespace StocksHelper.ViewModels
 			{
 				if (user.Value != String.Empty)
 				{
-					await this.BotClient.SendTextMessageAsync
-					(
-						chatId: user.Key.TelegramId,
-						text: user.Value
-					);
+					await TelegramBot.SendMessageAsync(user.Key.TelegramId, "Ежедневный отчет по вашим акциям:\n\n" + user.Value);
+					notifiedUsers++;
 				}
+				else if (user.Key.Stocks.Count == 0)
+					await TelegramBot.SendMessageAsync(user.Key.TelegramId, "Вы пока не добавили ни одной акции, поэтому ежедневный отчет для вас недоступен.");
 			}
 
-			Application.Current.Dispatcher.Invoke
-			(
-				new Action(() =>
-					this.LogRecords.Add(new LogRecordsRepository(new BaseDataContext()).Create(
-						new LogRecord
-						{
-							DateTime = DateTime.Now,
-							Message = $"Рассылка рекомендаций успешно завершена. {stocks.Count} акций для {usersToNotify.Count} пользователей.\n" +
-								$"Затрачено времени: {Math.Round((double)this._StopWatcher.ElapsedMilliseconds / 1000, 2)}с."
-						}))),
-				DispatcherPriority.Normal
-			);
+			Logger.CreateLog(new LogRecord
+			{
+				DateTime = DateTime.Now, 
+				Message = $"Рассылка рекомендаций успешно завершена. {stocks.Count} акций для {notifiedUsers} пользователей.\n" +
+					$"Затрачено времени: {Math.Round((double)this._StopWatcher.ElapsedMilliseconds / 1000, 2)}сек."
+			}, this.LogRecords);
 		}
 
 		//Подгрузка недостающих котировок по всем акциям (или одной акции) и отправка уведомлений владельцам
@@ -356,8 +321,9 @@ namespace StocksHelper.ViewModels
 			}
 			new StocksQuotesRepository(new BaseDataContext()).Create(this.GetStockQuotes(stocksList));
 
+
 			if (stocksList.Count != 0)
-				this.SendNotifications(stocksList.Select(s => s.Key).ToList());
+				this.SendNotifications(stocksList.Select(s => s.Key).Where(s => s.StockQuotes.Count != 0).ToList());
 		}
 
 		//Регистрируем пользователя с соответствующим именем и telegramId
@@ -454,7 +420,7 @@ namespace StocksHelper.ViewModels
 			DateTime now = DateTime.Now;
 
 			//Если дата котировки меньше текущей больше чем на один день, то нужно загрузить котировки
-			if (date.AddHours(6) < now)
+			if (date.AddDays(1) < now)
 				return true;
 			return false;
 		}
