@@ -30,7 +30,7 @@ namespace StocksHelper.ViewModels
 			this.LogRecords = new ObservableCollection<LogRecord>(new LogRecordsRepository(new BaseDataContext()).GetAll());
 			this._StopWatcher = new Stopwatch();
 
-			DispatcherTimer mainTimer = new DispatcherTimer() { Interval = new TimeSpan(0, 0, 10) };
+			DispatcherTimer mainTimer = new DispatcherTimer() { Interval = new TimeSpan(1, 0, 0) };
 			mainTimer.Tick += this.MainTimer_Tick;
 			mainTimer.Start();
 		}
@@ -54,7 +54,7 @@ namespace StocksHelper.ViewModels
 			DateTime currentDateTime = DateTime.Now;
 			if (currentDateTime.DayOfWeek != DayOfWeek.Saturday &&
 				currentDateTime.DayOfWeek != DayOfWeek.Sunday &&
-				currentDateTime.Hour == 16)
+				currentDateTime.Hour == 6)
 			{
 				this._StopWatcher = Stopwatch.StartNew();
 				this.LoadMissingQuotes();
@@ -416,11 +416,8 @@ namespace StocksHelper.ViewModels
 		//Проверка нужно ли загружать котировки
 		private bool IsNeedToUploadQuotes(DateTime date)
 		{
-			//Текущая дата
-			DateTime now = DateTime.Now;
-
 			//Если дата котировки меньше текущей больше чем на один день, то нужно загрузить котировки
-			if (date.AddDays(1) < now)
+			if (date.AddDays(1) < DateTime.Now)
 				return true;
 			return false;
 		}
