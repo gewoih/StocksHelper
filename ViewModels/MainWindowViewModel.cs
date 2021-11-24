@@ -27,7 +27,7 @@ namespace StocksHelper.ViewModels
 		{
 			TelegramBot.ConfigureTelegramBot(this.OnMessageHandler);
 			//Загрузка логов
-			this.LogRecords = new ObservableCollection<LogRecord>(new LogRecordsRepository(new BaseDataContext()).GetAll());
+			this.LogRecords = new ObservableCollection<LogRecord>();
 			this._StopWatcher = new Stopwatch();
 
 			DispatcherTimer mainTimer = new DispatcherTimer() { Interval = new TimeSpan(1, 0, 0) };
@@ -96,10 +96,6 @@ namespace StocksHelper.ViewModels
 						answerReplyMarkup = new ForceReplyMarkup { Selective = true };
 						break;
 
-					case "Мои акции":
-						answerReplyMarkup = GetMyStocksButtons();
-						break;
-
 					case "Список моих акций":
 						if (user.Stocks.Count != 0)
 						{
@@ -108,7 +104,6 @@ namespace StocksHelper.ViewModels
 						}
 						else
 							answerMessage = "Вы пока не добавили ни одной акции.";
-						answerReplyMarkup = GetMyStocksButtons();
 						break;
 
 					case "В главное меню":
@@ -117,10 +112,7 @@ namespace StocksHelper.ViewModels
 
 					case "Рекомендации":
 						if (user.Stocks.Count != 0)
-						{
 							answerMessage = this.GetAdvicesForUserStocks(user);
-							answerReplyMarkup = GetMyStocksButtons();
-						}
 						else
 							answerMessage = "Вы пока не добавили ни одной акции.";
 						break;
@@ -132,8 +124,6 @@ namespace StocksHelper.ViewModels
 								answerMessage = this.AddStockToUser(user, msg.Text);
 							else if (msg.ReplyToMessage.Text == "Введите тикер акции для удаления:")
 								answerMessage = this.RemoveStockFromUser(user, msg.Text);
-
-							answerReplyMarkup = GetMyStocksButtons();
 						}
 						break;
 				}
@@ -161,7 +151,7 @@ namespace StocksHelper.ViewModels
 
 			WebClient webClient = new WebClient();
 			webClient.Headers.Add("accept: application/json");
-			webClient.Headers.Add($"X-API-KEY: {ConfigurationManager.AppSettings["YahooFinanceAPI2"]}");
+			webClient.Headers.Add($"X-API-KEY: {ConfigurationManager.AppSettings["YahooFinanceAPI1"]}");
 
 			string response = webClient.DownloadString($"https://yfapi.net/v7/finance/options/{symbol}?date={currentTimestamp}");
 			dynamic obj = JsonConvert.DeserializeObject(response);
@@ -226,33 +216,40 @@ namespace StocksHelper.ViewModels
 
 			WebClient webClient = new WebClient();
 			webClient.Headers.Add("accept: application/json");
-			webClient.Headers.Add($"X-API-KEY: {ConfigurationManager.AppSettings["YahooFinanceAPI2"]}");
+			webClient.Headers.Add($"X-API-KEY: {ConfigurationManager.AppSettings["YahooFinanceAPI1"]}");
 
 			int stock_index = 0;
 			foreach (var stocksList in newStocks)
 			{
-				string symbols = string.Empty;
-				stocksList.ForEach(s => symbols += s.Symbol + ",");
-
-				string response = webClient.DownloadString($"https://yfapi.net/v8/finance/spark?interval={interval}&range={range}&symbols={symbols}");
-				dynamic obj = JsonConvert.DeserializeObject(response);
-
-				foreach (var stock in stocksList)
+				try
 				{
-					var result = obj[stock.Symbol];
+					string symbols = string.Empty;
+					stocksList.ForEach(s => symbols += s.Symbol + ",");
 
-					//Формируем список котировок и возвращаем его
-					for (int j = 0; j < result.timestamp.Count; j++)
+					string response = webClient.DownloadString($"https://yfapi.net/v8/finance/spark?interval={interval}&range={range}&symbols={symbols}");
+					dynamic obj = JsonConvert.DeserializeObject(response);
+
+					foreach (var stock in stocksList)
 					{
-						DateTime quoteDateTime = new DateTime(1970, 1, 1, 0, 0, 0, 0).AddSeconds((double)result.timestamp[j]).ToLocalTime();
-						//Если котировка на более позднюю дату, чем нам нужно - обрабатываем ее
-						if (quoteDateTime > stocks[stock_index].Value)
+						var result = obj[stock.Symbol];
+
+						//Формируем список котировок и возвращаем его
+						for (int j = 0; j < result.timestamp.Count; j++)
 						{
-							StockQuote newQuote = new StockQuote { StockId = stock.Id, DateTime = quoteDateTime, ClosePrice = result.close[j] };
-							quotes.Add(newQuote);
+							DateTime quoteDateTime = new DateTime(1970, 1, 1, 0, 0, 0, 0).AddSeconds((double)result.timestamp[j]).ToLocalTime();
+							//Если котировка на более позднюю дату, чем нам нужно - обрабатываем ее
+							if (quoteDateTime > stocks[stock_index].Value)
+							{
+								StockQuote newQuote = new StockQuote { StockId = stock.Id, DateTime = quoteDateTime, ClosePrice = result.close[j] };
+								quotes.Add(newQuote);
+							}
 						}
+						stock_index++;
 					}
-					stock_index++;
+				}
+				catch
+				{
+					Debug.WriteLine("Вызвано исключение!");
 				}
 			}
 			return quotes;
@@ -388,24 +385,9 @@ namespace StocksHelper.ViewModels
 			{
 				Keyboard = new List<List<KeyboardButton>>
 				{
-					new List<KeyboardButton>{ new KeyboardButton { Text = "Мои акции"} },
-					new List<KeyboardButton>{ new KeyboardButton { Text = "Настройки"} }
-				},
-				ResizeKeyboard = true
-			};
-		}
-
-		//Меню "Акции"
-		private static IReplyMarkup GetMyStocksButtons()
-		{
-			return new ReplyKeyboardMarkup
-			{
-				Keyboard = new List<List<KeyboardButton>>
-				{
 					new List<KeyboardButton> { new KeyboardButton { Text = "Добавить акцию" }, new KeyboardButton { Text = "Удалить акцию" } },
 					new List<KeyboardButton> { new KeyboardButton { Text = "Список моих акций" } },
 					new List<KeyboardButton> { new KeyboardButton { Text = "Рекомендации" } },
-					new List<KeyboardButton> { new KeyboardButton { Text = "В главное меню" } },
 				},
 				ResizeKeyboard = true
 			};

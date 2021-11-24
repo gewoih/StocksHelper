@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Configuration;
+using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -25,15 +26,22 @@ namespace StocksHelper.Models
 
 		public static async Task SendMessageAsync(ChatId chatId, string answer, IReplyMarkup replyMarkup = null)
 		{
-			while (answer.Length != 0)
+			try
 			{
-				await Client.SendTextMessageAsync
-				(
-					chatId: chatId,
-					text: answer.Substring(0, Math.Min(answer.Length, 4096)),
-					replyMarkup: replyMarkup
-				);
-				answer = answer.Substring(Math.Min(answer.Length, 4096));
+				while (answer.Length != 0)
+				{
+					await Client.SendTextMessageAsync
+					(
+						chatId: chatId,
+						text: answer.Substring(0, Math.Min(answer.Length, 4096)),
+						replyMarkup: replyMarkup
+					);
+					answer = answer.Substring(Math.Min(answer.Length, 4096));
+				}
+			}
+			catch (Exception e)
+			{
+				Debug.WriteLine(e.Message);
 			}
 		}
 	}
